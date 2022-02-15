@@ -91,7 +91,7 @@ def make_significance():
     plt.ylabel("Significance")
     plt.xlabel("Threshold")
     plt.savefig(os.path.join(plot_path, "significance.png"))
-    
+
     print("GENERATED SIGNIFICANCE PLOT")
 
     return (thresholds, significance)
@@ -186,17 +186,17 @@ def calculate_metrics():
     index = significance.argmax()
     best_threshold = thresholds[index]
     best_significance = significance[index]
-    
+
     auc_score = roc_auc_score(y_test, preds)
-    #accuracy = accuracy_score(y_test, preds)
-    #f1 = f1_score(y_test, preds)
+    # accuracy = accuracy_score(y_test, preds)
+    # f1 = f1_score(y_test, preds)
 
     metrics = {}
     metrics["Best Threshold"] = best_threshold
     metrics["Best Significance"] = best_significance
     metrics["AUC"] = auc_score
-    #metrics["Accuracy"] = accuracy
-    #metrics["F1 Score"] = f1
+    # metrics["Accuracy"] = accuracy
+    # metrics["F1 Score"] = f1
 
     with open(os.path.join(plot_path, "metrics.pickle"), "wb") as handle:
         pickle.dump(metrics, handle, protocol=pickle.HIGHEST_PROTOCOL)

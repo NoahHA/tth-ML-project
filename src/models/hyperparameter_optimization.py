@@ -166,7 +166,7 @@ def main():
     bayesian_opt_tuner.search(
         [event_X_train, object_X_train],
         y_train,
-        epochs=1, #100
+        epochs=1,  # 100
         batch_size=BATCH_SIZE,
         validation_data=([event_X_test, object_X_test], y_test),
         callbacks=[early_stopping],

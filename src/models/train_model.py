@@ -12,8 +12,7 @@ import pandas as pd
 import sys
 from src.features.build_features import preprocess_data
 
-# command-line arguments: epochs, model_name, included_data e.g. 13
-# 1 = semi-leptonic data, 2 = fully-leptonic data, 3 = fully hadronic
+# command-line argument is the name under which the model will be saved
 
 ############## LOADING PREPROCESSED DATA ##############
 
@@ -35,7 +34,7 @@ object_X_test = np.load(os.path.join(load_path, "object_X_test.npy"))
 LR = 0.001
 ACTIVATION = "relu"
 BATCH_SIZE = 64
-EPOCHS = int(input('Number of epochs: '))
+EPOCHS = int(input("Number of epochs: "))
 model_name = sys.argv[1]
 MODEL_FILEPATH = os.path.join("models", model_name)
 
@@ -174,6 +173,7 @@ def main():
     )
 
     make_training_curves(history)
+
 
 if __name__ == "__main__":
     main()
