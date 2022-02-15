@@ -32,7 +32,11 @@ object_cols = [
 ]
 
 
-def load_data(data_path, include_SL=True, include_FL=True, include_FH=True):
+def load_data(data_path):
+    include_SL = input('Include Semi-Leptonic data? (y/n)\n')
+    include_FL = input('Include Fully-Leptonic data? (y/n)\n')
+    include_FH = input('Include Fully-Hadronic data? (y/n)\n')
+
     # loads the dataframes
     higgs_df = pd.read_hdf(os.path.join(data_path, "ttH.hd5"))
     semi_leptonic_df = pd.read_hdf(os.path.join(data_path, "ttsemileptonic.hd5"))
@@ -47,9 +51,9 @@ def load_data(data_path, include_SL=True, include_FL=True, include_FH=True):
 
     # combines the dataframes and randomly shuffles the rows
     full_df = higgs_df
-    if include_SL: full_df = full_df.append(semi_leptonic_df, ignore_index=True)
-    if include_FL: full_df = full_df.append(fully_leptonic_df, ignore_index=True)
-    if include_FH: full_df = full_df.append(fully_hadronic_df, ignore_index=True)
+    if include_SL == 'y': full_df = full_df.append(semi_leptonic_df, ignore_index=True)
+    if include_FL == 'y': full_df = full_df.append(fully_leptonic_df, ignore_index=True)
+    if include_FH == 'y': full_df = full_df.append(fully_hadronic_df, ignore_index=True)
 
     # removes useless columns
     full_df = shuffle(full_df)
@@ -92,7 +96,7 @@ def expand_lists(df, max_jets):
     return temp_df
 
 
-def main():
+def preprocess_data():
     ############## LOADING AND PREPROCESSING DATA ##############
 
     print('LOADING AND PREPROCESSING DATA...')
@@ -150,4 +154,4 @@ def main():
     print('DATA SAVED')
 
 if __name__ == '__main__':
-    main()
+    preprocess_data()

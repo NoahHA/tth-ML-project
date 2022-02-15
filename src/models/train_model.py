@@ -10,11 +10,16 @@ from keras.layers import Dense, LSTM, Concatenate, BatchNormalization
 from keras import Model
 import pandas as pd
 import sys
+from src.features.build_features import preprocess_data
 
+# command-line arguments: epochs, model_name, included_data e.g. 13
+# 1 = semi-leptonic data, 2 = fully-leptonic data, 3 = fully hadronic
 
 ############## LOADING PREPROCESSED DATA ##############
 
 load_path = r"data/processed"
+
+preprocess_data()
 
 event_X_train = pd.read_pickle(os.path.join(load_path, "event_X_train.pkl"))
 event_X_test = pd.read_pickle(os.path.join(load_path, "event_X_test.pkl"))
@@ -30,8 +35,8 @@ object_X_test = np.load(os.path.join(load_path, "object_X_test.npy"))
 LR = 0.001
 ACTIVATION = "relu"
 BATCH_SIZE = 64
-EPOCHS = int(sys.argv[1])
-model_name = sys.argv[2]
+EPOCHS = int(input('Number of epochs: '))
+model_name = sys.argv[1]
 MODEL_FILEPATH = os.path.join("models", model_name)
 
 OPTIMIZER = keras.optimizers.Adam(
@@ -136,7 +141,7 @@ def make_training_curves(history):
         os.mkdir(plot_path)
 
     metrics = ["loss", "accuracy", "AUC", "f1_score"]
-    fig = plt.figure(figsize=(10, 20))
+    fig = plt.figure(figsize=(20, 10))
 
     for n, metric in enumerate(metrics):
         name = metric.replace("_", " ")
