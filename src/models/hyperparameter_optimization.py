@@ -3,7 +3,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 import keras.backend as K
-import keras_tuner as kt
 from sklearn.utils import class_weight
 from keras.models import Sequential
 from keras.layers import (
@@ -16,11 +15,23 @@ from keras.layers import (
 )
 from keras import Model
 import pandas as pd
+from src.features.build_features import preprocess_data
+import optuna
+from optuna.integration import KerasPruningCallback
+import logging
+import sys
+
+# ignores all warnings
+import warnings
+warnings.filterwarnings("ignore")
 
 
 ############## LOADING PREPROCESSED DATA ##############
 
 load_path = r"data/processed"
+
+use_all_data = input("Use all data (y/n): ")
+if use_all_data != 'y': preprocess_data()
 
 event_X_train = pd.read_pickle(os.path.join(load_path, "event_X_train.pkl"))
 event_X_test = pd.read_pickle(os.path.join(load_path, "event_X_test.pkl"))
@@ -34,7 +45,6 @@ object_X_test = np.load(os.path.join(load_path, "object_X_test.npy"))
 ############## DEFINING HYPERPARAMETERS ##############
 
 ACTIVATION = "relu"
-BATCH_SIZE = 64
 
 
 def f1_score(y_true, y_pred):  # taken from old keras source code
@@ -73,44 +83,38 @@ MODE = "auto"
 ############## CREATING AND TRAINING MODEL ##############
 
 
-def create_model(hp):
-    units1 = hp.Int("dnn_units", min_value=40, max_value=300, step=20)
-    units2 = hp.Int("lstm_units", min_value=40, max_value=300, step=20)
-    units3 = hp.Int("merged_units", min_value=40, max_value=300, step=20)
-    dropout = hp.Float("dropout", min_value=0.0, max_value=0.5, step=0.05)
-    re_dropout = hp.Float("redroput", min_value=0.0, max_value=0.5, step=0.05)
-    merged_layer_2 = hp.Boolean("layer4")
-    merged_layer_3 = hp.Boolean("layer5")
-    lstm_layer_2 = hp.Boolean("lstm_layer_2")
-    lr = hp.Choice("lr", [1e-4, 1e-3, 1e-2])
-
+def create_model(params):
     DNN_model = Sequential()
     DNN_model.add(
-        Dense(units1, input_shape=(event_X_train.shape[1],), activation=ACTIVATION)
+        Dense(
+            params["units1"],
+            input_shape=(event_X_train.shape[1],),
+            activation=ACTIVATION,
+        )
     )
     DNN_model.add(BatchNormalization())
-    DNN_model.add(Dropout(dropout))
+    DNN_model.add(Dropout(params["dropout"]))
 
     RNN_model = Sequential()
 
-    if lstm_layer_2:
+    if params["lstm_layer_2"]:
         RNN_model.add(
             LSTM(
-                units2,
+                params["units2"],
                 input_shape=(object_X_train.shape[1], object_X_train.shape[2]),
                 activation="tanh",
                 return_sequences=True,
-                recurrent_dropout=re_dropout,
+                recurrent_dropout=params["re_dropout"],
             )
         )
         RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
 
         RNN_model.add(
             LSTM(
-                units2,
+                params["units2"],
                 input_shape=(object_X_train.shape[1], object_X_train.shape[2]),
                 activation="tanh",
-                recurrent_dropout=re_dropout,
+                recurrent_dropout=params["re_dropout"],
             )
         )
         RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
@@ -118,33 +122,33 @@ def create_model(hp):
     else:
         RNN_model.add(
             LSTM(
-                units2,
+                params["units2"],
                 input_shape=(object_X_train.shape[1], object_X_train.shape[2]),
                 activation="tanh",
-                recurrent_dropout=re_dropout,
+                recurrent_dropout=params["re_dropout"],
             )
         )
         RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
 
     merged_model = Concatenate()([DNN_model.output, RNN_model.output])
-    merged_model = Dense(units3, activation=ACTIVATION)(merged_model)
+    merged_model = Dense(params["units3"], activation=ACTIVATION)(merged_model)
     merged_model = BatchNormalization()(merged_model)
-    merged_model = Dropout(dropout)(merged_model)
+    merged_model = Dropout(params["dropout"])(merged_model)
 
-    if merged_layer_2:
-        merged_model = Dense(units3, activation=ACTIVATION)(merged_model)
+    if params["merged_layer_2"]:
+        merged_model = Dense(params["units3"], activation=ACTIVATION)(merged_model)
         merged_model = BatchNormalization()(merged_model)
-        merged_model = Dropout(dropout)(merged_model)
+        merged_model = Dropout(params["dropout"])(merged_model)
 
-        if merged_layer_3:
-            merged_model = Dense(units3, activation=ACTIVATION)(merged_model)
+        if params["merged_layer_3"]:
+            merged_model = Dense(params["units3"], activation=ACTIVATION)(merged_model)
             merged_model = BatchNormalization()(merged_model)
-            merged_model = Dropout(dropout)(merged_model)
+            merged_model = Dropout(params["dropout"])(merged_model)
 
     merged_model = Dense(1, activation="sigmoid")(merged_model)
     model = Model(inputs=[DNN_model.input, RNN_model.input], outputs=merged_model)
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=lr),
+        optimizer=keras.optimizers.Adam(learning_rate=params["lr"]),
         loss="binary_crossentropy",
         metrics=METRICS,
     )
@@ -152,27 +156,69 @@ def create_model(hp):
     return model
 
 
-def main():
-    bayesian_opt_tuner = kt.BayesianOptimization(
-        create_model,
-        objective="val_loss",
-        max_trials=200,
-        executions_per_trial=1,
-        directory="models/tmp/tb",
-        project_name="binary_model_all_data",
-        overwrite=True,
-    )
+def objective(trial):
+    params = {
+        "units1": trial.suggest_int("dnn_units", 40, 300, 20),
+        "units2": trial.suggest_int("lstm_units", 40, 300, 20),
+        "units3": trial.suggest_int("merged_units", 40, 300, 20),
+        "dropout": trial.suggest_uniform("dropout", 0.0, 0.5),
+        "re_dropout": trial.suggest_uniform("redroput", 0.0, 0.5),
+        "merged_layer_2": trial.suggest_categorical("layer4", [True, False]),
+        "merged_layer_3": trial.suggest_categorical("layer5", [True, False]),
+        "lstm_layer_2": trial.suggest_categorical("lstm_layer2", [True, False]),
+        "lr": trial.suggest_loguniform("lr", 1e-4, 1e-1),
+        "batch_size": trial.suggest_categorical("batch_size", [16, 32, 64, 128]),
+    }
 
-    bayesian_opt_tuner.search(
+    model = create_model(params)
+
+    model.fit(
         [event_X_train, object_X_train],
         y_train,
-        epochs=1,  # 100
-        batch_size=BATCH_SIZE,
-        validation_data=([event_X_test, object_X_test], y_test),
-        callbacks=[early_stopping],
+        batch_size=params["batch_size"],
         class_weight=class_weights,
+        epochs=100,
+        callbacks=[early_stopping, KerasPruningCallback(trial, "val_loss")],
+        validation_data=([event_X_test, object_X_test], y_test),
+        shuffle=True,
+        verbose=1,
     )
+
+    score = model.evaluate([event_X_test, object_X_test], y_test)
+
+    return score[0]
+
+
+def load_study(study_name, storage_name):
+    study = optuna.load_study(study_name=study_name, storage=storage_name)
+    df = study.trials_dataframe(attrs=("number", "value", "params", "state"))
+    best_trial = study.best_trial
+
+    for key, value in best_trial.params.items():
+        print("{}: {}".format(key, value))
+
+    return df
+
+
+def main():
+    # Add stream handler of stdout to show the messages
+    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    study_name = "bayesian_opt_v1"  # Unique identifier of the study.
+    storage_name = f"sqlite:///models/{study_name}.db"
+
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(),
+        pruner=optuna.pruners.MedianPruner(),
+        study_name=study_name,
+        storage=storage_name,
+        load_if_exists=True,
+    )
+
+    study.optimize(objective, n_trials=200)
 
 
 if __name__ == "__main__":
     main()
+
+# run it in multiple terminals to parallelize

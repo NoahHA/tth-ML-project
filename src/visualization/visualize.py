@@ -6,6 +6,7 @@ import pandas as pd
 import pickle
 import sys
 import seaborn as sns
+import shap
 from sklearn.metrics import (
     roc_curve,
     roc_auc_score,
@@ -18,6 +19,8 @@ from sklearn.metrics import (
 
 
 ############## LOADING MODEL AND DATA ##############
+
+# maybe write code to automatically create a latex document or something based on these plots
 
 processed_path = r"data/processed"
 interim_path = r"data/interim"
@@ -204,10 +207,66 @@ def calculate_metrics():
     return best_threshold
 
 
-best_threshold = calculate_metrics()
-make_confusion_matrix(y_test, preds, p=best_threshold)
-make_discriminator()
-make_roc_curve()
-make_pr_curve()
+def main():
+    best_threshold = calculate_metrics()
+    make_confusion_matrix(y_test, preds, p=best_threshold)
+    make_discriminator()
+    make_roc_curve()
+    make_pr_curve()
 
-# maybe write code to automatically create a latex document or something based on these plots
+
+if __name__ == "__main__":
+    main()
+
+############## EXPLAINS MODEL RESULTS USING SHAP ##############
+
+# Generate the Kernelexplainer and SHAP values
+explainer = shap.KernelExplainer(model.predict, [event_X_train, object_X_train])
+shap_values = explainer.shap_values([event_X_test, object_X_test], nsamples=100)
+expected_value = explainer.expected_value
+
+############## visualizations #############
+# Generate summary dot plot
+shap.summary_plot(shap_values, X, title="SHAP summary plot")
+
+# Generate summary bar plot
+shap.summary_plot(shap_values, X, plot_type="bar")
+
+# Generate waterfall plot
+shap.plots._waterfall.waterfall_legacy(
+    expected_value,
+    shap_values[79],
+    features=X.loc[79, :],
+    feature_names=X.columns,
+    max_display=15,
+    show=True,
+)
+
+# Generate dependence plot
+shap.dependence_plot(
+    "worst concave points", shap_values, X, interaction_index="mean concave points"
+)
+
+# Generate multiple dependence plots
+for name in X_train.columns:
+    shap.dependence_plot(name, shap_values, X)
+shap.dependence_plot(
+    "worst concave points", shap_values, X, interaction_index="mean concave points"
+)
+
+# Generate force plot - Multiple rows
+shap.force_plot(explainer.expected_value, shap_values[:100, :], X.iloc[:100, :])
+
+# Generate force plot - Single
+shap.force_plot(explainer.expected_value, shap_values[0, :], X.iloc[0, :])
+
+# Generate Decision plot
+shap.decision_plot(
+    expected_value,
+    shap_values[79],
+    link="logit",
+    features=X.loc[79, :],
+    feature_names=(X.columns.tolist()),
+    show=True,
+    title="Decision Plot",
+)

@@ -17,7 +17,6 @@ from src.features.build_features import preprocess_data
 ############## LOADING PREPROCESSED DATA ##############
 
 load_path = r"data/processed"
-
 preprocess_data()
 
 event_X_train = pd.read_pickle(os.path.join(load_path, "event_X_train.pkl"))

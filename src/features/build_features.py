@@ -6,6 +6,11 @@ from keras.preprocessing import sequence
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+# ignores all warnings
+import warnings
+warnings.filterwarnings("ignore")
+
+
 event_cols = [
     "BiasedDPhi",
     "DiJet_mass",
@@ -37,25 +42,22 @@ def load_data(data_path):
     include_FL = input("Include Fully-Leptonic data? (y/n)\n")
     include_FH = input("Include Fully-Hadronic data? (y/n)\n")
 
-    # loads the dataframes
     higgs_df = pd.read_hdf(os.path.join(data_path, "ttH.hd5"))
-    semi_leptonic_df = pd.read_hdf(os.path.join(data_path, "ttsemileptonic.hd5"))
-    fully_leptonic_df = pd.read_hdf(os.path.join(data_path, "fully_leptonic.hd5"))
-    fully_hadronic_df = pd.read_hdf(os.path.join(data_path, "fully_hadronic.hd5"))
-
-    # labels signal vs background
     higgs_df["signal"] = 1
-    semi_leptonic_df["signal"] = 0
-    fully_hadronic_df["signal"] = 0
-    fully_leptonic_df["signal"] = 0
 
     # combines the dataframes and randomly shuffles the rows
     full_df = higgs_df
     if include_SL == "y":
+        semi_leptonic_df = pd.read_hdf(os.path.join(data_path, "ttsemileptonic.hd5"))
+        semi_leptonic_df["signal"] = 0
         full_df = full_df.append(semi_leptonic_df, ignore_index=True)
     if include_FL == "y":
+        fully_leptonic_df = pd.read_hdf(os.path.join(data_path, "fully_leptonic.hd5"))
+        fully_leptonic_df["signal"] = 0
         full_df = full_df.append(fully_leptonic_df, ignore_index=True)
     if include_FH == "y":
+        fully_hadronic_df = pd.read_hdf(os.path.join(data_path, "fully_hadronic.hd5"))
+        fully_hadronic_df["signal"] = 0
         full_df = full_df.append(fully_hadronic_df, ignore_index=True)
 
     # removes useless columns
