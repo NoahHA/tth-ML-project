@@ -209,7 +209,7 @@ def main():
     study = optuna.create_study(
         direction="minimize",
         sampler=optuna.samplers.TPESampler(),
-        pruner=optuna.pruners.MedianPruner(),
+        pruner=optuna.pruners.MedianPruner(n_warmup_steps=2),
         study_name=study_name,
         storage=storage_name,
         load_if_exists=True,
@@ -220,5 +220,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# run it in multiple terminals to parallelize

@@ -1,22 +1,18 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from tensorflow import keras
 import os
-import pandas as pd
 import pickle
 import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import seaborn as sns
 import shap
-from sklearn.metrics import (
-    roc_curve,
-    roc_auc_score,
-    confusion_matrix,
-    precision_recall_curve,
-    PrecisionRecallDisplay,
-    accuracy_score,
-    f1_score,
-)
+from sklearn.metrics import (PrecisionRecallDisplay, accuracy_score,
+                             confusion_matrix, f1_score,
+                             precision_recall_curve, roc_auc_score, roc_curve)
+from tensorflow import keras
 
+plt.style.use('ggplot')
 
 ############## LOADING MODEL AND DATA ##############
 
@@ -93,7 +89,7 @@ def make_significance():
     plt.title("Significance as a function of Threshold")
     plt.ylabel("Significance")
     plt.xlabel("Threshold")
-    plt.savefig(os.path.join(plot_path, "significance.png"))
+    plt.savefig(os.path.join(plot_path, "significance.png"), bbox_inches="tight")
 
     print("GENERATED SIGNIFICANCE PLOT")
 
@@ -109,7 +105,7 @@ def make_discriminator():
     n_bins = 75
     alpha = 0.6
 
-    fig, (ax1, ax2) = plt.subplots(2, figsize=(8, 8))
+    fig, (ax1, ax2) = plt.subplots(2, figsize=(14, 8))
 
     ax1.yaxis.set_ticks([])
     ax2.yaxis.set_ticks([])
@@ -130,7 +126,7 @@ def make_discriminator():
 
     print("GENERATED DISCRIMINATOR PLOT")
 
-    plt.savefig(os.path.join(plot_path, "discriminator_plots.png"))
+    plt.savefig(os.path.join(plot_path, "discriminator_plots.png"), bbox_inches="tight")
 
 
 def make_confusion_matrix(labels, predictions, p=0.5):
@@ -151,7 +147,7 @@ def make_confusion_matrix(labels, predictions, p=0.5):
 
     print("GENERATED CONFUSION MATRIX")
 
-    plt.savefig(os.path.join(plot_path, "confusion_matrix.png"))
+    plt.savefig(os.path.join(plot_path, "confusion_matrix.png"), bbox_inches="tight")
 
 
 def make_roc_curve():
@@ -166,7 +162,7 @@ def make_roc_curve():
 
     print("GENERATED ROC CURVE")
 
-    plt.savefig(os.path.join(plot_path, "roc_curve.png"))
+    plt.savefig(os.path.join(plot_path, "roc_curve.png"), bbox_inches="tight")
 
 
 def make_pr_curve():
@@ -181,7 +177,7 @@ def make_pr_curve():
 
     print("GENERATED PRECISION-RECALL CURVE")
 
-    plt.savefig(os.path.join(plot_path, "pr_curve.png"))
+    plt.savefig(os.path.join(plot_path, "pr_curve.png"), bbox_inches="tight")
 
 
 def calculate_metrics():
@@ -206,6 +202,76 @@ def calculate_metrics():
 
     return best_threshold
 
+############## EXPLAINS MODEL RESULTS USING SHAP ##############
+
+def make_summary_plots(shap_values, n_values):
+    plt.clf()
+    shap.summary_plot(shap_values[0][0], 
+                    features=event_X_test.head(n_values), 
+                    feature_names=event_X_test.columns, 
+                    plot_size=(15, 10), 
+                    show=False)
+
+    plt.savefig(os.path.join(plot_path, "shap_summary.png"), bbox_inches="tight")
+    plt.clf()
+
+    shap.summary_plot(np.abs(shap_values[0][0]), 
+                    features=event_X_test.head(n_values), 
+                    feature_names=event_X_test.columns, 
+                    plot_size=(15, 10),
+                    show=False)
+
+    plt.savefig(os.path.join(plot_path, "shap_summary_abs.png"), bbox_inches="tight")
+    print("GENERATED SHAP SUMMARY PLOTS")
+
+
+def make_bar_plots(shap_values):
+    # max SHAP value bar plot
+    _, axs = plt.subplots(ncols=1, nrows=2, figsize=(10, 15))
+    cols = event_X_test.columns
+
+    shap_max = np.max(np.abs(shap_values[0][0]), axis=0)
+    shap_mean = np.mean(np.abs(shap_values[0][0]), axis=0)
+    shap_max, cols_max = zip(*sorted(zip(shap_max, cols)))
+    shap_mean, cols_mean = zip(*sorted(zip(shap_mean, cols)))
+    
+    axs[0].barh(cols_mean, shap_mean)
+    axs[1].barh(cols_max, shap_max)
+
+    axs[0].set_xlabel('mean(|SHAP value|)')
+    axs[1].set_xlabel('max(|SHAP value|)')
+
+    plt.savefig(os.path.join(plot_path, "shap_bar_plots.png"), bbox_inches="tight")
+    print("GENERATED SHAP BAR PLOTS")
+
+
+def make_dependence_plots(shap_values, n_values):
+    plt.figure(figsize=(25, 20))
+    plt.subplots_adjust(hspace=0.5)
+    plt.suptitle("Dependence Plots", fontsize=40, y=0.95)
+
+    for i, name in enumerate(event_X_train.columns):
+        ax = plt.subplot(4, 3, i+1)
+        shap.dependence_plot(name, shap_values[0][0], event_X_test.head(n_values), ax=ax, show=False)
+
+    plt.savefig(os.path.join(plot_path, "shap_dependence_plots.png"), bbox_inches="tight")
+    print("GENERATED SHAP DEPENDENCE PLOTS")
+
+
+def make_shap_plots():
+    n_bg = 10
+    n_values = 1000
+    background = [event_X_train.head(n_bg).values, object_X_train[:n_bg]]
+    
+    # Generate the GradientExplainer and SHAP values
+    explainer = shap.GradientExplainer(model, background)
+    shap_values = explainer.shap_values([event_X_test.head(n_values).values, object_X_test[:n_values]])
+
+    make_summary_plots(shap_values, n_values)
+    make_bar_plots(shap_values)
+    make_dependence_plots(shap_values, n_values)
+
+############## CREATES AND SAVES ALL GRAPHS ##############
 
 def main():
     best_threshold = calculate_metrics()
@@ -213,60 +279,8 @@ def main():
     make_discriminator()
     make_roc_curve()
     make_pr_curve()
+    make_shap_plots()
 
 
 if __name__ == "__main__":
     main()
-
-############## EXPLAINS MODEL RESULTS USING SHAP ##############
-
-# Generate the Kernelexplainer and SHAP values
-explainer = shap.KernelExplainer(model.predict, [event_X_train, object_X_train])
-shap_values = explainer.shap_values([event_X_test, object_X_test], nsamples=100)
-expected_value = explainer.expected_value
-
-############## visualizations #############
-# Generate summary dot plot
-shap.summary_plot(shap_values, X, title="SHAP summary plot")
-
-# Generate summary bar plot
-shap.summary_plot(shap_values, X, plot_type="bar")
-
-# Generate waterfall plot
-shap.plots._waterfall.waterfall_legacy(
-    expected_value,
-    shap_values[79],
-    features=X.loc[79, :],
-    feature_names=X.columns,
-    max_display=15,
-    show=True,
-)
-
-# Generate dependence plot
-shap.dependence_plot(
-    "worst concave points", shap_values, X, interaction_index="mean concave points"
-)
-
-# Generate multiple dependence plots
-for name in X_train.columns:
-    shap.dependence_plot(name, shap_values, X)
-shap.dependence_plot(
-    "worst concave points", shap_values, X, interaction_index="mean concave points"
-)
-
-# Generate force plot - Multiple rows
-shap.force_plot(explainer.expected_value, shap_values[:100, :], X.iloc[:100, :])
-
-# Generate force plot - Single
-shap.force_plot(explainer.expected_value, shap_values[0, :], X.iloc[0, :])
-
-# Generate Decision plot
-shap.decision_plot(
-    expected_value,
-    shap_values[79],
-    link="logit",
-    features=X.loc[79, :],
-    feature_names=(X.columns.tolist()),
-    show=True,
-    title="Decision Plot",
-)
