@@ -162,7 +162,7 @@ def objective(trial):
         "units2": trial.suggest_int("lstm_units", 40, 300, 20),
         "units3": trial.suggest_int("merged_units", 40, 300, 20),
         "dropout": trial.suggest_uniform("dropout", 0.0, 0.5),
-        "re_dropout": trial.suggest_uniform("redroput", 0.0, 0.5),
+        "re_dropout": trial.suggest_uniform("redroput", 0.0, 0.5), # TODO change spelling redroput -> redropout
         "merged_layer_2": trial.suggest_categorical("layer4", [True, False]),
         "merged_layer_3": trial.suggest_categorical("layer5", [True, False]),
         "lstm_layer_2": trial.suggest_categorical("lstm_layer2", [True, False]),

@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import shap
+import xgboost as xgb
 from sklearn.metrics import (PrecisionRecallDisplay, accuracy_score,
                              confusion_matrix, f1_score,
                              precision_recall_curve, roc_auc_score, roc_curve)
@@ -34,8 +35,14 @@ object_X_test = np.load(os.path.join(processed_path, "object_X_test.npy"))
 X_test = pd.read_pickle(os.path.join(interim_path, "X_test.pkl"))
 
 model_path = os.path.join("models", model_name)
-model = keras.models.load_model(model_path, custom_objects={"f1_score": f1_score})
-preds = model.predict([event_X_test, object_X_test])
+
+if 'xgboost' in model_name:
+    model = xgb.Booster({'nthread': 4})  # init model
+    model.load_model(model_path)  # load data
+    preds = model.predict(xgb.DMatrix(event_X_test.values))
+else:
+    model = keras.models.load_model(model_path, custom_objects={"f1_score": f1_score})
+    preds = model.predict([event_X_test, object_X_test])
 
 ############## GENERATING AND SAVING PLOTS ##############
 
@@ -99,8 +106,12 @@ def make_significance():
 def make_discriminator():
     labels = y_test.values
 
-    sg = [pred[0] for label, pred in zip(labels, preds) if label == 1]
-    bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
+    if 'xgboost' in model_name:
+        sg = [pred for label, pred in zip(labels, preds) if label == 1]
+        bg = [pred for label, pred in zip(labels, preds) if label == 0]
+    else:
+        sg = [pred[0] for label, pred in zip(labels, preds) if label == 1]
+        bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
 
     n_bins = 75
     alpha = 0.6
@@ -206,7 +217,7 @@ def calculate_metrics():
 
 def make_summary_plots(shap_values, n_values):
     plt.clf()
-    shap.summary_plot(shap_values[0][0], 
+    shap.summary_plot(shap_values, 
                     features=event_X_test.head(n_values), 
                     feature_names=event_X_test.columns, 
                     plot_size=(15, 10), 
@@ -215,7 +226,7 @@ def make_summary_plots(shap_values, n_values):
     plt.savefig(os.path.join(plot_path, "shap_summary.png"), bbox_inches="tight")
     plt.clf()
 
-    shap.summary_plot(np.abs(shap_values[0][0]), 
+    shap.summary_plot(np.abs(shap_values), 
                     features=event_X_test.head(n_values), 
                     feature_names=event_X_test.columns, 
                     plot_size=(15, 10),
@@ -230,8 +241,8 @@ def make_bar_plots(shap_values):
     _, axs = plt.subplots(ncols=1, nrows=2, figsize=(10, 15))
     cols = event_X_test.columns
 
-    shap_max = np.max(np.abs(shap_values[0][0]), axis=0)
-    shap_mean = np.mean(np.abs(shap_values[0][0]), axis=0)
+    shap_max = np.max(np.abs(shap_values), axis=0)
+    shap_mean = np.mean(np.abs(shap_values), axis=0)
     shap_max, cols_max = zip(*sorted(zip(shap_max, cols)))
     shap_mean, cols_mean = zip(*sorted(zip(shap_mean, cols)))
     
@@ -252,7 +263,7 @@ def make_dependence_plots(shap_values, n_values):
 
     for i, name in enumerate(event_X_train.columns):
         ax = plt.subplot(4, 3, i+1)
-        shap.dependence_plot(name, shap_values[0][0], event_X_test.head(n_values), ax=ax, show=False)
+        shap.dependence_plot(name, shap_values, event_X_test.head(n_values), ax=ax, show=False)
 
     plt.savefig(os.path.join(plot_path, "shap_dependence_plots.png"), bbox_inches="tight")
     print("GENERATED SHAP DEPENDENCE PLOTS")
@@ -261,11 +272,15 @@ def make_dependence_plots(shap_values, n_values):
 def make_shap_plots():
     n_bg = 10
     n_values = 1000
-    background = [event_X_train.head(n_bg).values, object_X_train[:n_bg]]
-    
-    # Generate the GradientExplainer and SHAP values
-    explainer = shap.GradientExplainer(model, background)
-    shap_values = explainer.shap_values([event_X_test.head(n_values).values, object_X_test[:n_values]])
+
+    if 'xgboost' in model_name:
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(event_X_test.head(n_values).values)
+    else:
+        background = [event_X_train.head(n_bg).values, object_X_train[:n_bg]]
+        explainer = shap.GradientExplainer(model, background)
+        shap_values = explainer.shap_values([event_X_test.head(n_values).values, object_X_test[:n_values]])
+        shap_values = shap_values[0][0]
 
     make_summary_plots(shap_values, n_values)
     make_bar_plots(shap_values)
