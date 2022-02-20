@@ -78,8 +78,8 @@ def create_model(params):
 def main():
     # Add stream handler of stdout to show the messages
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
-    study_name = "bayesian_opt_xgboost_v1"  # Unique identifier of the study.
-    storage_name = f"sqlite:///models/{study_name}.db"
+    study_name = "bayesian_opt_xgboost_v2"  # Unique identifier of the study.
+    storage_name = f"sqlite:///models/bayesian_opt_xgboost.db"
 
     study = optuna.create_study(
         direction="maximize",

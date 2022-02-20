@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 import keras.backend as K
+from keras import Input
 import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
 from keras.models import Sequential
@@ -40,6 +41,7 @@ MODEL_FILEPATH = os.path.join("models", model_name)
 
 OPTIMIZER = keras.optimizers.Adam(
     learning_rate=LR,
+    clipnorm=0.001,
 )
 
 
@@ -71,7 +73,7 @@ MODE = "auto"
 early_stopping = tf.keras.callbacks.EarlyStopping(
     monitor=MONITOR,
     verbose=1,
-    patience=20,
+    patience=EPOCHS//2,
     mode=MODE,
     restore_best_weights=True,
 )
@@ -97,14 +99,9 @@ reduce_lr = keras.callbacks.ReduceLROnPlateau(
 
 ############## CREATING AND TRAINING MODEL ##############
 
-
 def create_model():
-    DNN_model = Sequential(
-        [
-            Dense(40, input_shape=(event_X_train.shape[1],), activation=ACTIVATION),
-            BatchNormalization(),
-        ]
-    )
+
+    DNN_model = Input(shape=event_X_train.shape[1])
 
     RNN_model = Sequential(
         [
@@ -114,27 +111,31 @@ def create_model():
                 activation="tanh",
                 unroll=False,
             ),
-            BatchNormalization(),
+            BatchNormalization(epsilon=0.01),
         ]
     )
 
-    merged_model = Concatenate()([DNN_model.output, RNN_model.output])
+    merged_model = Concatenate()([DNN_model, RNN_model.output])
 
-    merged_model = BatchNormalization()(merged_model)
+    merged_model = BatchNormalization(epsilon=0.01)(merged_model)
+    merged_model = Dense(100, activation=ACTIVATION)(merged_model)
+    merged_model = BatchNormalization(epsilon=0.01)(merged_model)
+    merged_model = Dense(100, activation=ACTIVATION)(merged_model)
+    merged_model = BatchNormalization(epsilon=0.01)(merged_model)
     merged_model = Dense(40, activation=ACTIVATION)(merged_model)
     merged_model = Dense(1, activation="sigmoid")(merged_model)
 
-    model = Model(inputs=[DNN_model.input, RNN_model.input], outputs=merged_model)
+    model = Model(inputs=[DNN_model, RNN_model.input], outputs=merged_model)
     model.compile(optimizer=OPTIMIZER, loss="binary_crossentropy", metrics=METRICS)
 
     return model
 
 
-def make_training_curves(history):
+def make_training_curves(history, model):
     # saves training curves
 
-    plot_path = r"reports/figures"
-    plot_path = os.path.join(plot_path, model_name)
+    fig_path = r"reports/figures"
+    plot_path = os.path.join(fig_path, model_name)
 
     if not os.path.exists(plot_path):
         os.mkdir(plot_path)
@@ -155,6 +156,12 @@ def make_training_curves(history):
         plt.legend()
 
     plt.savefig(os.path.join(plot_path, "training_curves.png"))
+    keras.utils.plot_model(
+        model,
+        to_file=os.path.join(plot_path, "model_architecture.png"),
+        show_shapes=True,
+        show_layer_names=False
+)
 
 
 def main():
@@ -172,7 +179,7 @@ def main():
         verbose=1,
     )
 
-    make_training_curves(history)
+    make_training_curves(history, model)
 
 
 if __name__ == "__main__":
