@@ -1,6 +1,6 @@
+import argparse
 import os
 import pickle
-import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,57 +10,47 @@ import shap
 import xgboost as xgb
 from sklearn.metrics import (
     PrecisionRecallDisplay,
-    accuracy_score,
     confusion_matrix,
     f1_score,
     precision_recall_curve,
     roc_auc_score,
     roc_curve,
 )
+from src.features.build_features import load_preprocessed_data
 from tensorflow import keras
 
 plt.style.use("ggplot")
 
-############## LOADING MODEL AND DATA ##############
-
 # maybe write code to automatically create a latex document or something based on these plots
 
-processed_path = r"data/processed"
-interim_path = r"data/interim"
-model_name = sys.argv[1]
 
-event_X_train = pd.read_pickle(os.path.join(processed_path, "event_X_train.pkl"))
-event_X_test = pd.read_pickle(os.path.join(processed_path, "event_X_test.pkl"))
+def make_training_curves(history):
+    """Generates training curves for a model
 
-y_train = pd.read_pickle(os.path.join(processed_path, "y_train.pkl"))
-y_test = pd.read_pickle(os.path.join(processed_path, "y_test.pkl"))
+    Args:
+        history: model training history
+    """
+    metrics = ["loss", "accuracy", "f1_score", "AUC"]
+    _ = plt.figure(figsize=(20, 10))
 
-object_X_train = np.load(os.path.join(processed_path, "object_X_train.npy"))
-object_X_test = np.load(os.path.join(processed_path, "object_X_test.npy"))
+    for n, metric in enumerate(metrics):
+        name = metric.replace("_", " ")
+        plt.subplot(2, 2, n + 1)
+        plt.plot(history.epoch, history.history[metric], label="Train")
+        plt.plot(
+            history.epoch, history.history["val_" + metric], linestyle="--", label="Val"
+        )
 
-X_test = pd.read_pickle(os.path.join(interim_path, "X_test.pkl"))
-
-model_path = os.path.join("models", model_name)
-
-if "xgboost" in model_name:
-    model = xgb.Booster({"nthread": 4})  # init model
-    model.load_model(model_path)  # load data
-    preds = model.predict(xgb.DMatrix(event_X_test.values))
-else:
-    model = keras.models.load_model(model_path, custom_objects={"f1_score": f1_score})
-    preds = model.predict([event_X_test, object_X_test])
-
-############## GENERATING AND SAVING PLOTS ##############
-
-plot_path = r"reports/figures"
-plot_path = os.path.join(plot_path, model_name)
-if not os.path.exists(plot_path):
-    os.mkdir(plot_path)
+        plt.xlabel("Epoch")
+        plt.ylabel(name)
+        plt.legend()
 
 
-def make_significance():
+def make_significance(data, preds):
+    interim_path = r"data/interim"
+    X_test = pd.read_pickle(os.path.join(interim_path, "X_test.pkl"))
     test_weight = X_test["xs_weight"].values
-    test_frac = len(y_test) / len(y_train)
+    test_frac = len(data["y_test"]) / len(data["y_train"])
 
     thresholds = np.linspace(0, 1, 50)
     significance = np.zeros(len(thresholds), dtype=float)
@@ -70,7 +60,7 @@ def make_significance():
 
     sg = np.zeros(len(thresholds))
     bg = np.zeros(len(thresholds))
-    labels = y_test.values
+    labels = data["y_test"].values
 
     for i, threshold in enumerate(thresholds):
         sg[i] = (
@@ -102,15 +92,12 @@ def make_significance():
     plt.title("Significance as a function of Threshold")
     plt.ylabel("Significance")
     plt.xlabel("Threshold")
-    plt.savefig(os.path.join(plot_path, "significance.png"), bbox_inches="tight")
-
-    print("GENERATED SIGNIFICANCE PLOT")
 
     return (thresholds, significance)
 
 
-def make_discriminator():
-    labels = y_test.values
+def make_discriminator(data, preds, model_name):
+    labels = data["y_test"].values
 
     if "xgboost" in model_name:
         sg = [pred for label, pred in zip(labels, preds) if label == 1]
@@ -122,28 +109,28 @@ def make_discriminator():
     n_bins = 75
     alpha = 0.6
 
-    fig, (ax1, ax2) = plt.subplots(2, figsize=(14, 8))
+    fig, axs = plt.subplots(2, figsize=(14, 8))
 
-    ax1.yaxis.set_ticks([])
-    ax2.yaxis.set_ticks([])
+    axs[0].yaxis.set_ticks([])
+    axs[1].yaxis.set_ticks([])
 
     fig.suptitle("Discriminator Plots")
-    ax1.hist(sg, density=True, bins=n_bins, range=(0, 1), alpha=alpha, label="Signal")
-    ax1.hist(
+    axs[0].hist(
+        sg, density=True, bins=n_bins, range=(0, 1), alpha=alpha, label="Signal"
+    )
+    axs[0].hist(
         bg, density=True, bins=n_bins, range=(0, 1), alpha=alpha, label="Background"
     )
-    ax2.hist(sg, density=False, bins=n_bins, range=(0, 1), alpha=alpha, label="Signal")
-    ax2.hist(
+    axs[1].hist(
+        sg, density=False, bins=n_bins, range=(0, 1), alpha=alpha, label="Signal"
+    )
+    axs[1].hist(
         bg, density=False, bins=n_bins, range=(0, 1), alpha=alpha, label="Background"
     )
 
-    ax1.set_title("Normalised")
-    ax2.set_title("Unnormalised")
+    axs[0].set_title("Normalised")
+    axs[1].set_title("Unnormalised")
     plt.legend()
-
-    print("GENERATED DISCRIMINATOR PLOT")
-
-    plt.savefig(os.path.join(plot_path, "discriminator_plots.png"), bbox_inches="tight")
 
 
 def make_confusion_matrix(labels, predictions, p=0.5):
@@ -162,13 +149,9 @@ def make_confusion_matrix(labels, predictions, p=0.5):
     plt.ylabel("Actual label")
     plt.xlabel("Predicted label")
 
-    print("GENERATED CONFUSION MATRIX")
 
-    plt.savefig(os.path.join(plot_path, "confusion_matrix.png"), bbox_inches="tight")
-
-
-def make_roc_curve():
-    fpr, tpr, _ = roc_curve(y_test, preds)
+def make_roc_curve(data, preds):
+    fpr, tpr, _ = roc_curve(data["y_test"], preds)
 
     plt.figure(figsize=(8, 8))
     plt.plot(fpr, tpr)
@@ -177,13 +160,9 @@ def make_roc_curve():
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
 
-    print("GENERATED ROC CURVE")
 
-    plt.savefig(os.path.join(plot_path, "roc_curve.png"), bbox_inches="tight")
-
-
-def make_pr_curve():
-    precision, recall, _ = precision_recall_curve(y_test, preds)
+def make_pr_curve(data, preds):
+    precision, recall, _ = precision_recall_curve(data["y_test"], preds)
 
     plt.figure(figsize=(8, 8))
     disp = PrecisionRecallDisplay(precision=precision, recall=recall)
@@ -192,18 +171,14 @@ def make_pr_curve():
     plt.xlabel("Recall")
     plt.ylabel("Precision")
 
-    print("GENERATED PRECISION-RECALL CURVE")
 
-    plt.savefig(os.path.join(plot_path, "pr_curve.png"), bbox_inches="tight")
-
-
-def calculate_metrics():
-    thresholds, significance = make_significance()
+def calculate_metrics(data, preds, plot_path):
+    thresholds, significance = make_significance(data, preds)
     index = significance.argmax()
     best_threshold = thresholds[index]
     best_significance = significance[index]
 
-    auc_score = roc_auc_score(y_test, preds)
+    auc_score = roc_auc_score(data["y_test"], preds)
     # accuracy = accuracy_score(y_test, preds)
     # f1 = f1_score(y_test, preds)
 
@@ -220,38 +195,30 @@ def calculate_metrics():
     return best_threshold
 
 
-############## EXPLAINS MODEL RESULTS USING SHAP ##############
-
-
-def make_summary_plots(shap_values, n_values):
-    plt.clf()
+def make_summary_plot(shap_values, n_values, data):
     shap.summary_plot(
         shap_values,
-        features=event_X_test.head(n_values),
-        feature_names=event_X_test.columns,
+        features=data["event_X_test"].head(n_values),
+        feature_names=data["event_X_test"].columns,
         plot_size=(15, 10),
         show=False,
     )
 
-    plt.savefig(os.path.join(plot_path, "shap_summary.png"), bbox_inches="tight")
-    plt.clf()
 
+def make_summary_plot_abs(shap_values, n_values, data):
     shap.summary_plot(
         np.abs(shap_values),
-        features=event_X_test.head(n_values),
-        feature_names=event_X_test.columns,
+        features=data["event_X_test"].head(n_values),
+        feature_names=data["event_X_test"].columns,
         plot_size=(15, 10),
         show=False,
     )
 
-    plt.savefig(os.path.join(plot_path, "shap_summary_abs.png"), bbox_inches="tight")
-    print("GENERATED SHAP SUMMARY PLOTS")
 
-
-def make_bar_plots(shap_values):
+def make_bar_plots(shap_values, data):
     # max SHAP value bar plot
     _, axs = plt.subplots(ncols=1, nrows=2, figsize=(10, 15))
-    cols = event_X_test.columns
+    cols = data["event_X_test"].columns
 
     shap_max = np.max(np.abs(shap_values), axis=0)
     shap_mean = np.mean(np.abs(shap_values), axis=0)
@@ -264,58 +231,108 @@ def make_bar_plots(shap_values):
     axs[0].set_xlabel("mean(|SHAP value|)")
     axs[1].set_xlabel("max(|SHAP value|)")
 
-    plt.savefig(os.path.join(plot_path, "shap_bar_plots.png"), bbox_inches="tight")
-    print("GENERATED SHAP BAR PLOTS")
 
-
-def make_dependence_plots(shap_values, n_values):
+def make_dependence_plots(shap_values, n_values, data):
     plt.figure(figsize=(25, 20))
     plt.subplots_adjust(hspace=0.5)
     plt.suptitle("Dependence Plots", fontsize=40, y=0.95)
 
-    for i, name in enumerate(event_X_train.columns):
+    for i, name in enumerate(data["event_X_train"].columns):
         ax = plt.subplot(4, 3, i + 1)
         shap.dependence_plot(
-            name, shap_values, event_X_test.head(n_values), ax=ax, show=False
+            name, shap_values, data["event_X_test"].head(n_values), ax=ax, show=False
         )
 
-    plt.savefig(
-        os.path.join(plot_path, "shap_dependence_plots.png"), bbox_inches="tight"
-    )
-    print("GENERATED SHAP DEPENDENCE PLOTS")
+
+def save_plot(model_name: str, fig_name: str):
+    """Saves a matplotlib figure in reports/figures in a
+    subfolder named after the model name
+
+    Args:
+        model_name (str): name of the model + name of the subfolder
+        fig_name (str): name of figure to be saved,
+            without any filetype e.g. "bar_plot"
+    """
+    fig_path = r"reports/figures"
+    plot_path = os.path.join(fig_path, model_name)
+
+    if not os.path.exists(plot_path):
+        os.mkdir(plot_path)
+
+    plt.savefig(os.path.join(plot_path, f"{fig_name}.png"), bbox_inches="tight")
 
 
-def make_shap_plots():
+def make_shap_plots(model_name, model, data):
     n_bg = 10
     n_values = 1000
 
     if "xgboost" in model_name:
         explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(event_X_test.head(n_values).values)
+        shap_values = explainer.shap_values(data["event_X_test"].head(n_values).values)
     else:
-        background = [event_X_train.head(n_bg).values, object_X_train[:n_bg]]
+        background = [
+            data["event_X_train"].head(n_bg).values,
+            data["object_X_train"][:n_bg],
+        ]
         explainer = shap.GradientExplainer(model, background)
         shap_values = explainer.shap_values(
-            [event_X_test.head(n_values).values, object_X_test[:n_values]]
+            [
+                data["event_X_test"].head(n_values).values,
+                data["object_X_test"][:n_values],
+            ]
         )
         shap_values = shap_values[0][0]
 
-    make_summary_plots(shap_values, n_values)
-    make_bar_plots(shap_values)
-    make_dependence_plots(shap_values, n_values)
+    make_summary_plot(shap_values, n_values, data)
+    save_plot(model_name, "shap_summary")
+    make_summary_plot_abs(shap_values, n_values, data)
+    save_plot(model_name, "shap_summary_abs")
+    make_bar_plots(shap_values, data)
+    save_plot(model_name, "shap_bar_plots")
+    make_dependence_plots(shap_values, n_values, data)
+    save_plot(model_name, "shap_dependence_plots")
 
 
-############## CREATES AND SAVES ALL GRAPHS ##############
+def main(args):
+    data = load_preprocessed_data()
+    model_name = args.model_name
+    model_path = os.path.join("models", model_name)
 
+    if "xgboost" in model_name:
+        model = xgb.Booster({"nthread": 4})  # init model
+        model.load_model(model_path)  # load data
+        preds = model.predict(xgb.DMatrix(data["event_X_test"].values))
+    else:
+        model = keras.models.load_model(
+            model_path, custom_objects={"f1_score": f1_score}
+        )
+        preds = model.predict([data["event_X_test"], data["object_X_test"]])
 
-def main():
-    best_threshold = calculate_metrics()
-    make_confusion_matrix(y_test, preds, p=best_threshold)
-    make_discriminator()
-    make_roc_curve()
-    make_pr_curve()
-    make_shap_plots()
+    plot_path = r"reports/figures"
+    plot_path = os.path.join(plot_path, model_name)
+    if not os.path.exists(plot_path):
+        os.mkdir(plot_path)
+
+    make_significance(data, preds)
+    save_plot(model_name, "significance")
+    best_threshold = calculate_metrics(data, preds, plot_path)
+    make_confusion_matrix(data["y_test"], preds, p=best_threshold)
+    save_plot(model_name, "confusion_matrix")
+    make_discriminator(data, preds, model_name)
+    save_plot(model_name, "discriminator_plots")
+    make_roc_curve(data, preds)
+    save_plot(model_name, "roc_curve")
+    make_pr_curve(data, preds)
+    save_plot(model_name, "pr_curve")
+    make_shap_plots(model_name, model, data)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Train a neural net")
+    parser.add_argument(
+        "--model_name",
+        default="model_test.h5",
+        help="Name of model (ends in .h5 for keras models or .model for xgboost)",
+    )
+    args = parser.parse_args()
+    main(args)

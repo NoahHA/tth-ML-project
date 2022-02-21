@@ -10,6 +10,7 @@ from keras.layers import LSTM, BatchNormalization, Concatenate, Dense
 from keras.models import Sequential
 from sklearn.utils import class_weight
 from src.features.build_features import load_preprocessed_data
+from src.visualization.visualize import make_training_curves, save_plot
 from tensorflow import keras
 
 
@@ -77,48 +78,6 @@ def make_RNN_model(data: dict):
     return model
 
 
-# TODO move this to visualize.py
-def make_training_curves(history, metrics: list):
-    """Generates training curves for a model
-
-    Args:
-        history: model training history
-        metrics (list): list of metrics to plot
-    """
-
-    _ = plt.figure(figsize=(20, 10))
-
-    for n, metric in enumerate(metrics):
-        name = metric.replace("_", " ")
-        plt.subplot(2, 2, n + 1)
-        plt.plot(history.epoch, history.history[metric], label="Train")
-        plt.plot(
-            history.epoch, history.history["val_" + metric], linestyle="--", label="Val"
-        )
-
-        plt.xlabel("Epoch")
-        plt.ylabel(name)
-        plt.legend()
-
-
-def save_plot(model_name: str, fig_name: str):
-    """Saves a matplotlib figure in reports/figures in a
-    subfolder named after the model name
-
-    Args:
-        model_name (str): name of the model + name of the subfolder
-        fig_name (str): name of figure to be saved,
-            without any filetype e.g. "bar_plot"
-    """
-    fig_path = r"reports/figures"
-    plot_path = os.path.join(fig_path, model_name)
-
-    if not os.path.exists(plot_path):
-        os.mkdir(plot_path)
-
-    plt.savefig(os.path.join(plot_path, f"{fig_name}.png"), bbox_inches="tight")
-
-
 def train_RNN(epochs: int, model_filepath: str, data: dict):
     BATCH_SIZE = 64
     class_weights = class_weight.compute_class_weight(
@@ -172,11 +131,11 @@ def train_RNN(epochs: int, model_filepath: str, data: dict):
 def main(args):
     EPOCHS = args.epochs
     MODEL_NAME = args.model_name
-    MODEL_FILEPATH = os.path.join("models", MODEL_NAME)  # TODO: save the model
+    MODEL_FILEPATH = os.path.join("models", MODEL_NAME)
     data = load_preprocessed_data(args.all_data)
 
     history, model = train_RNN(EPOCHS, MODEL_FILEPATH, data)
-    make_training_curves(history, model)
+    make_training_curves(history)
     save_plot(MODEL_NAME, "training_curves")
 
 
