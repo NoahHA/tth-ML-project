@@ -1,113 +1,61 @@
+import argparse
 import os
+
+import keras.backend as K
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
-import keras.backend as K
-from keras import Input
-import matplotlib.pyplot as plt
-from sklearn.utils import class_weight
+from keras import Input, Model
+from keras.layers import LSTM, BatchNormalization, Concatenate, Dense
 from keras.models import Sequential
-from keras.layers import Dense, LSTM, Concatenate, BatchNormalization
-from keras import Model
-import pandas as pd
-import sys
-from src.features.build_features import preprocess_data
-
-# command-line argument is the name under which the model will be saved
-
-############## LOADING PREPROCESSED DATA ##############
-
-load_path = r"data/processed"
-use_all_data = input("Use all data (y/n): ")
-if use_all_data != 'y': preprocess_data()
-
-event_X_train = pd.read_pickle(os.path.join(load_path, "event_X_train.pkl"))
-event_X_test = pd.read_pickle(os.path.join(load_path, "event_X_test.pkl"))
-
-y_train = pd.read_pickle(os.path.join(load_path, "y_train.pkl"))
-y_test = pd.read_pickle(os.path.join(load_path, "y_test.pkl"))
-
-object_X_train = np.load(os.path.join(load_path, "object_X_train.npy"))
-object_X_test = np.load(os.path.join(load_path, "object_X_test.npy"))
-
-############## DEFINING HYPERPARAMETERS ##############
-
-LR = 0.001
-ACTIVATION = "relu"
-BATCH_SIZE = 64
-EPOCHS = int(input("Number of epochs: "))
-model_name = sys.argv[1]
-MODEL_FILEPATH = os.path.join("models", model_name)
-
-OPTIMIZER = keras.optimizers.Adam(
-    learning_rate=LR,
-    clipnorm=0.001,
-)
+from sklearn.utils import class_weight
+from src.features.build_features import load_preprocessed_data
+from tensorflow import keras
 
 
-def f1_score(y_true, y_pred):  # taken from old keras source code
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-    precision = true_positives / (predicted_positives + K.epsilon())
-    recall = true_positives / (possible_positives + K.epsilon())
-    f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
-    return f1_val
+def make_RNN_model(data: dict):
+    """Defines and compiles a recurrent neural network model
 
+    Args:
+        data (dict): data to be fed to the model
 
-METRICS = [
-    keras.metrics.BinaryAccuracy(name="accuracy"),
-    keras.metrics.AUC(name="AUC"),
-    f1_score,
-]
+    Returns:
+        model: A compiled RNN model
+    """
 
-class_weights = class_weight.compute_class_weight(
-    class_weight="balanced", classes=np.unique(y_train), y=y_train
-)
-class_weights = {l: c for l, c in zip(np.unique(y_train), class_weights)}
+    def f1_score(y_true, y_pred):  # taken from old keras source code
+        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+        predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+        precision = true_positives / (predicted_positives + K.epsilon())
+        recall = true_positives / (possible_positives + K.epsilon())
+        f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
+        return f1_val
 
-MONITOR = "val_loss"
-MODE = "auto"
+    LR = 0.001
+    ACTIVATION = "relu"
+    num_layers = 2
 
-# stops training early if score doesn't improve
-early_stopping = tf.keras.callbacks.EarlyStopping(
-    monitor=MONITOR,
-    verbose=1,
-    patience=EPOCHS//2,
-    mode=MODE,
-    restore_best_weights=True,
-)
+    optimizer = keras.optimizers.Adam(
+        learning_rate=LR,
+        clipnorm=0.001,
+    )
+    metrics = [
+        keras.metrics.BinaryAccuracy(name="accuracy"),
+        keras.metrics.AUC(name="AUC"),
+        f1_score,
+    ]
 
-# saves the network at regular intervals so you can pick the best version
-checkpoint = tf.keras.callbacks.ModelCheckpoint(
-    filepath=MODEL_FILEPATH,
-    monitor=MONITOR,
-    verbose=1,
-    save_best_only=True,
-    save_weights_only=False,
-    mode=MODE,
-    save_freq="epoch",
-)
-
-# reduces the lr whenever training plateaus
-reduce_lr = keras.callbacks.ReduceLROnPlateau(
-    monitor=MONITOR,
-    factor=0.1,
-    patience=3,
-    mode=MODE,
-)
-
-############## CREATING AND TRAINING MODEL ##############
-
-def create_model():
-
-    DNN_model = Input(shape=event_X_train.shape[1])
+    DNN_model = Input(shape=data["event_X_train"].shape[1])
 
     RNN_model = Sequential(
         [
             LSTM(
                 200,
-                input_shape=(object_X_train.shape[1], object_X_train.shape[2]),
+                input_shape=(
+                    data["object_X_train"].shape[1],
+                    data["object_X_train"].shape[2],
+                ),
                 activation="tanh",
                 unroll=False,
             ),
@@ -117,31 +65,28 @@ def create_model():
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])
 
-    merged_model = BatchNormalization(epsilon=0.01)(merged_model)
-    merged_model = Dense(100, activation=ACTIVATION)(merged_model)
-    merged_model = BatchNormalization(epsilon=0.01)(merged_model)
-    merged_model = Dense(100, activation=ACTIVATION)(merged_model)
-    merged_model = BatchNormalization(epsilon=0.01)(merged_model)
-    merged_model = Dense(40, activation=ACTIVATION)(merged_model)
+    for _ in range(num_layers):
+        merged_model = BatchNormalization(epsilon=0.01)(merged_model)
+        merged_model = Dense(100, activation=ACTIVATION)(merged_model)
+
     merged_model = Dense(1, activation="sigmoid")(merged_model)
 
     model = Model(inputs=[DNN_model, RNN_model.input], outputs=merged_model)
-    model.compile(optimizer=OPTIMIZER, loss="binary_crossentropy", metrics=METRICS)
+    model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=metrics)
 
     return model
 
 
-def make_training_curves(history, model):
-    # saves training curves
+# TODO move this to visualize.py
+def make_training_curves(history, metrics: list):
+    """Generates training curves for a model
 
-    fig_path = r"reports/figures"
-    plot_path = os.path.join(fig_path, model_name)
+    Args:
+        history: model training history
+        metrics (list): list of metrics to plot
+    """
 
-    if not os.path.exists(plot_path):
-        os.mkdir(plot_path)
-
-    metrics = ["loss", "accuracy", "AUC", "f1_score"]
-    fig = plt.figure(figsize=(20, 10))
+    _ = plt.figure(figsize=(20, 10))
 
     for n, metric in enumerate(metrics):
         name = metric.replace("_", " ")
@@ -155,32 +100,101 @@ def make_training_curves(history, model):
         plt.ylabel(name)
         plt.legend()
 
-    plt.savefig(os.path.join(plot_path, "training_curves.png"))
-    keras.utils.plot_model(
-        model,
-        to_file=os.path.join(plot_path, "model_architecture.png"),
-        show_shapes=True,
-        show_layer_names=False
-)
+
+def save_plot(model_name: str, fig_name: str):
+    """Saves a matplotlib figure in reports/figures in a
+    subfolder named after the model name
+
+    Args:
+        model_name (str): name of the model + name of the subfolder
+        fig_name (str): name of figure to be saved,
+            without any filetype e.g. "bar_plot"
+    """
+    fig_path = r"reports/figures"
+    plot_path = os.path.join(fig_path, model_name)
+
+    if not os.path.exists(plot_path):
+        os.mkdir(plot_path)
+
+    plt.savefig(os.path.join(plot_path, f"{fig_name}.png"), bbox_inches="tight")
 
 
-def main():
-    model = create_model()
+def train_RNN(epochs: int, model_filepath: str, data: dict):
+    BATCH_SIZE = 64
+    class_weights = class_weight.compute_class_weight(
+        class_weight="balanced", classes=np.unique(data["y_train"]), y=data["y_train"]
+    )
+    class_weights_dict = {
+        _class: weight
+        for _class, weight in zip(np.unique(data["y_train"]), class_weights)
+    }
+
+    MONITOR = "val_loss"
+    MODE = "auto"
+
+    # stops training early if score doesn't improve
+    early_stopping = tf.keras.callbacks.EarlyStopping(
+        monitor=MONITOR,
+        verbose=1,
+        patience=epochs // 2,
+        mode=MODE,
+        restore_best_weights=True,
+    )
+
+    # saves the network at regular intervals so you can pick the best version
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(
+        filepath=model_filepath,
+        monitor=MONITOR,
+        verbose=1,
+        save_best_only=True,
+        save_weights_only=False,
+        mode=MODE,
+        save_freq="epoch",
+    )
+
+    model = make_RNN_model(data)
 
     history = model.fit(
-        [event_X_train, object_X_train],
-        y_train,
+        [data["event_X_train"], data["object_X_train"]],
+        data["y_train"],
         batch_size=BATCH_SIZE,
-        class_weight=class_weights,
-        epochs=EPOCHS,
+        class_weight=class_weights_dict,
+        epochs=epochs,
         callbacks=[early_stopping, checkpoint],
-        validation_data=([event_X_test, object_X_test], y_test),
+        validation_data=([data["event_X_test"], data["object_X_test"]], data["y_test"]),
         shuffle=True,
         verbose=1,
     )
 
+    return (history, model)
+
+
+def main(args):
+    EPOCHS = args.epochs
+    MODEL_NAME = args.model_name
+    MODEL_FILEPATH = os.path.join("models", MODEL_NAME)  # TODO: save the model
+    data = load_preprocessed_data(args.all_data)
+
+    history, model = train_RNN(EPOCHS, MODEL_FILEPATH, data)
     make_training_curves(history, model)
+    save_plot(MODEL_NAME, "training_curves")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Train a neural net")
+
+    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
+    parser.add_argument(
+        "--model_name",
+        default="model_test.h5",
+        help="Name of model (ends in .h5)",
+    )
+    parser.add_argument(
+        "--all_data",
+        type=bool,
+        default=True,
+        help="Whether to use all the background data",
+    )
+
+    args = parser.parse_args()
+    main(args)

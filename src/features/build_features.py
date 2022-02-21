@@ -1,13 +1,16 @@
 import os
-import numpy as np
-import pandas as pd
-from sklearn.utils import shuffle
-from keras.preprocessing import sequence
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+import pickle
 
 # ignores all warnings
 import warnings
+
+import numpy as np
+import pandas as pd
+from keras.preprocessing import sequence
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils import shuffle
+
 warnings.filterwarnings("ignore")
 
 
@@ -37,32 +40,35 @@ object_cols = [
 ]
 
 
-def load_data(data_path):
+def add_background(data_path, background, full_df):
+    bg_path = os.path.join(data_path, f"{background}.hd5")
+    bg_df = pd.read_hdf(bg_path)
+    bg_df["signal"] = 0
+
+    return full_df.append(bg_df, ignore_index=True)
+
+
+def load_data():
     include_SL = input("Include Semi-Leptonic data? (y/n)\n")
     include_FL = input("Include Fully-Leptonic data? (y/n)\n")
     include_FH = input("Include Fully-Hadronic data? (y/n)\n")
 
+    data_path = r"data/raw"
     higgs_df = pd.read_hdf(os.path.join(data_path, "ttH.hd5"))
     higgs_df["signal"] = 1
 
-    # combines the dataframes and randomly shuffles the rows
     full_df = higgs_df
     if include_SL == "y":
-        semi_leptonic_df = pd.read_hdf(os.path.join(data_path, "ttsemileptonic.hd5"))
-        semi_leptonic_df["signal"] = 0
-        full_df = full_df.append(semi_leptonic_df, ignore_index=True)
+        full_df = add_background(data_path, "ttsemileptonic", full_df)
     if include_FL == "y":
-        fully_leptonic_df = pd.read_hdf(os.path.join(data_path, "fully_leptonic.hd5"))
-        fully_leptonic_df["signal"] = 0
-        full_df = full_df.append(fully_leptonic_df, ignore_index=True)
+        full_df = add_background(data_path, "fully_leptonic", full_df)
     if include_FH == "y":
-        fully_hadronic_df = pd.read_hdf(os.path.join(data_path, "fully_hadronic.hd5"))
-        fully_hadronic_df["signal"] = 0
-        full_df = full_df.append(fully_hadronic_df, ignore_index=True)
+        full_df = add_background(data_path, "fully_hadronic", full_df)
 
     # removes useless columns
     full_df = shuffle(full_df)
-    df = full_df[event_cols + object_cols + ["signal", "xs_weight"]]
+    useful_cols = ["signal", "xs_weight"]
+    df = full_df[event_cols + object_cols + useful_cols]
 
     return df
 
@@ -101,64 +107,101 @@ def expand_lists(df, max_jets):
     return temp_df
 
 
-def preprocess_data():
-    ############## LOADING AND PREPROCESSING DATA ##############
-
-    print("LOADING AND PREPROCESSING DATA...")
-
-    data_path = r"data/raw"
-    df = load_data(data_path)
-    max_jets = df["ncleanedJet"].max()
-
+def split_data(df):
     # splits data into training and validation
     X, y = df.drop("signal", axis=1), df["signal"]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, stratify=y, random_state=1
     )
+    interim_path = r"data/interim"
+    X_train.to_pickle(os.path.join(interim_path, "X_train.pkl"))
+    X_test.to_pickle(os.path.join(interim_path, "X_test.pkl"))
 
     # divides training data into object level and event level features
     event_X_train, event_X_test = X_train[event_cols], X_test[event_cols]
     object_X_train, object_X_test = X_train[object_cols], X_test[object_cols]
 
-    # preprocesses the data
+    event_data = {"event_X_train": event_X_train, "event_X_test": event_X_test}
+    object_data = {"object_X_train": object_X_train, "object_X_test": object_X_test}
+    y_data = {"y_train": y_train, "y_test": y_test}
+
+    return (event_data, object_data, y_data)
+
+
+def preprocess_data():
+    print("LOADING AND PREPROCESSING DATA...")
+
+    df = load_data()
+    max_jets = df["ncleanedJet"].max()
+    event_data, object_data, y_data = split_data(df)
+
     scaler = StandardScaler()
-    event_X_train[event_cols] = scaler.fit_transform(event_X_train[event_cols].values)
-    event_X_test[event_cols] = scaler.transform(event_X_test[event_cols].values)
+    event_data["event_X_train"][event_cols] = scaler.fit_transform(
+        event_data["event_X_train"][event_cols].values
+    )
+    event_data["event_X_test"][event_cols] = scaler.transform(
+        event_data["event_X_test"][event_cols].values
+    )
 
-    object_X_train = pad_data(object_X_train)
-    object_X_test = pad_data(object_X_test)
+    for data in object_data.keys():
+        object_data[data] = pad_data(object_data[data])
+        object_data[data] = expand_lists(object_data[data], max_jets)
 
-    object_X_train = expand_lists(object_X_train, max_jets)
-    object_X_test = expand_lists(object_X_test, max_jets)
+    nz = np.any(object_data["object_X_train"], -1)
+    object_data["object_X_train"][nz] = scaler.fit_transform(
+        object_data["object_X_train"][nz]
+    )
+    nz = np.any(object_data["object_X_test"], -1)
+    object_data["object_X_test"][nz] = scaler.transform(
+        object_data["object_X_test"][nz]
+    )
 
-    nz = np.any(object_X_train, -1)
-    object_X_train[nz] = scaler.fit_transform(object_X_train[nz])
-    nz = np.any(object_X_test, -1)
-    object_X_test[nz] = scaler.transform(object_X_test[nz])
+    save_data(event_data, object_data, y_data)
 
-    print("FINISHED PREPROCESSING")
 
-    ############## SAVING PROCESSED DATA ##############
-
+def save_data(event_data, object_data, y_data):
     print("SAVING DATA...")
-
     save_path = r"data/processed"
 
-    np.save(os.path.join(save_path, "object_X_train.npy"), object_X_train)
-    np.save(os.path.join(save_path, "object_X_test.npy"), object_X_test)
+    combined_data = {
+        "event_X_train": event_data["event_X_train"],
+        "event_X_test": event_data["event_X_test"],
+        "object_X_train": object_data["object_X_train"],
+        "object_X_test": object_data["object_X_test"],
+        "y_train": y_data["y_train"],
+        "y_test": y_data["y_test"],
+    }
 
-    event_X_train.to_pickle(os.path.join(save_path, "event_X_train.pkl"))
-    event_X_test.to_pickle(os.path.join(save_path, "event_X_test.pkl"))
-
-    y_train.to_pickle(os.path.join(save_path, "y_train.pkl"))
-    y_test.to_pickle(os.path.join(save_path, "y_test.pkl"))
-
-    interim_path = r"data/interim"
-
-    X_train.to_pickle(os.path.join(interim_path, "X_train.pkl"))
-    X_test.to_pickle(os.path.join(interim_path, "X_test.pkl"))
+    with open(os.path.join(save_path, "processed_data.pickle"), "wb") as handle:
+        pickle.dump(combined_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     print("DATA SAVED")
+
+
+def load_preprocessed_data(use_all_data=True):
+    """Loads and returns data to be fed to the model
+    Args:
+        use_all_data (Bool): Whether or not to use all the background data,
+            if False then data needs to be reprocessed using process_data()
+
+    Returns:
+        dict: data dictionary containing:
+            event_X_train,
+            event_X_test,
+            object_X_train,
+            object_X_test,
+            y_train,
+            y_test
+    """
+    load_path = r"data/processed"
+
+    if not use_all_data:
+        preprocess_data()
+
+    with open(os.path.join(load_path, "processed_data.pickle"), "rb") as handle:
+        combined_data = pickle.load(handle)
+
+    return combined_data
 
 
 if __name__ == "__main__":

@@ -8,12 +8,18 @@ import pandas as pd
 import seaborn as sns
 import shap
 import xgboost as xgb
-from sklearn.metrics import (PrecisionRecallDisplay, accuracy_score,
-                             confusion_matrix, f1_score,
-                             precision_recall_curve, roc_auc_score, roc_curve)
+from sklearn.metrics import (
+    PrecisionRecallDisplay,
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_recall_curve,
+    roc_auc_score,
+    roc_curve,
+)
 from tensorflow import keras
 
-plt.style.use('ggplot')
+plt.style.use("ggplot")
 
 ############## LOADING MODEL AND DATA ##############
 
@@ -36,8 +42,8 @@ X_test = pd.read_pickle(os.path.join(interim_path, "X_test.pkl"))
 
 model_path = os.path.join("models", model_name)
 
-if 'xgboost' in model_name:
-    model = xgb.Booster({'nthread': 4})  # init model
+if "xgboost" in model_name:
+    model = xgb.Booster({"nthread": 4})  # init model
     model.load_model(model_path)  # load data
     preds = model.predict(xgb.DMatrix(event_X_test.values))
 else:
@@ -106,7 +112,7 @@ def make_significance():
 def make_discriminator():
     labels = y_test.values
 
-    if 'xgboost' in model_name:
+    if "xgboost" in model_name:
         sg = [pred for label, pred in zip(labels, preds) if label == 1]
         bg = [pred for label, pred in zip(labels, preds) if label == 0]
     else:
@@ -213,24 +219,30 @@ def calculate_metrics():
 
     return best_threshold
 
+
 ############## EXPLAINS MODEL RESULTS USING SHAP ##############
+
 
 def make_summary_plots(shap_values, n_values):
     plt.clf()
-    shap.summary_plot(shap_values, 
-                    features=event_X_test.head(n_values), 
-                    feature_names=event_X_test.columns, 
-                    plot_size=(15, 10), 
-                    show=False)
+    shap.summary_plot(
+        shap_values,
+        features=event_X_test.head(n_values),
+        feature_names=event_X_test.columns,
+        plot_size=(15, 10),
+        show=False,
+    )
 
     plt.savefig(os.path.join(plot_path, "shap_summary.png"), bbox_inches="tight")
     plt.clf()
 
-    shap.summary_plot(np.abs(shap_values), 
-                    features=event_X_test.head(n_values), 
-                    feature_names=event_X_test.columns, 
-                    plot_size=(15, 10),
-                    show=False)
+    shap.summary_plot(
+        np.abs(shap_values),
+        features=event_X_test.head(n_values),
+        feature_names=event_X_test.columns,
+        plot_size=(15, 10),
+        show=False,
+    )
 
     plt.savefig(os.path.join(plot_path, "shap_summary_abs.png"), bbox_inches="tight")
     print("GENERATED SHAP SUMMARY PLOTS")
@@ -245,12 +257,12 @@ def make_bar_plots(shap_values):
     shap_mean = np.mean(np.abs(shap_values), axis=0)
     shap_max, cols_max = zip(*sorted(zip(shap_max, cols)))
     shap_mean, cols_mean = zip(*sorted(zip(shap_mean, cols)))
-    
+
     axs[0].barh(cols_mean, shap_mean)
     axs[1].barh(cols_max, shap_max)
 
-    axs[0].set_xlabel('mean(|SHAP value|)')
-    axs[1].set_xlabel('max(|SHAP value|)')
+    axs[0].set_xlabel("mean(|SHAP value|)")
+    axs[1].set_xlabel("max(|SHAP value|)")
 
     plt.savefig(os.path.join(plot_path, "shap_bar_plots.png"), bbox_inches="tight")
     print("GENERATED SHAP BAR PLOTS")
@@ -262,10 +274,14 @@ def make_dependence_plots(shap_values, n_values):
     plt.suptitle("Dependence Plots", fontsize=40, y=0.95)
 
     for i, name in enumerate(event_X_train.columns):
-        ax = plt.subplot(4, 3, i+1)
-        shap.dependence_plot(name, shap_values, event_X_test.head(n_values), ax=ax, show=False)
+        ax = plt.subplot(4, 3, i + 1)
+        shap.dependence_plot(
+            name, shap_values, event_X_test.head(n_values), ax=ax, show=False
+        )
 
-    plt.savefig(os.path.join(plot_path, "shap_dependence_plots.png"), bbox_inches="tight")
+    plt.savefig(
+        os.path.join(plot_path, "shap_dependence_plots.png"), bbox_inches="tight"
+    )
     print("GENERATED SHAP DEPENDENCE PLOTS")
 
 
@@ -273,20 +289,24 @@ def make_shap_plots():
     n_bg = 10
     n_values = 1000
 
-    if 'xgboost' in model_name:
+    if "xgboost" in model_name:
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(event_X_test.head(n_values).values)
     else:
         background = [event_X_train.head(n_bg).values, object_X_train[:n_bg]]
         explainer = shap.GradientExplainer(model, background)
-        shap_values = explainer.shap_values([event_X_test.head(n_values).values, object_X_test[:n_values]])
+        shap_values = explainer.shap_values(
+            [event_X_test.head(n_values).values, object_X_test[:n_values]]
+        )
         shap_values = shap_values[0][0]
 
     make_summary_plots(shap_values, n_values)
     make_bar_plots(shap_values)
     make_dependence_plots(shap_values, n_values)
 
+
 ############## CREATES AND SAVES ALL GRAPHS ##############
+
 
 def main():
     best_threshold = calculate_metrics()
