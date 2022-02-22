@@ -1,12 +1,11 @@
 import logging
-import os
 import sys
 
-import keras.backend as K
 import numpy as np
 import optuna
-import pandas as pd
+import src.models.train_model as train
 import tensorflow as tf
+import yaml
 from keras import Input, Model
 from keras.layers import (
     LSTM,
@@ -19,65 +18,38 @@ from keras.layers import (
 from keras.models import Sequential
 from optuna.integration.keras import KerasPruningCallback
 from sklearn.utils import class_weight
-from src.features.build_features import preprocess_data
+from src.features.build_features import load_preprocessed_data
 from tensorflow import keras
 
-# LOADING PREPROCESSED DATA
+config = yaml.safe_load(open("src/config.yaml"))
 
-load_path = r"data/processed"
-
-use_all_data = input("Use all data (y/n): ")
-if use_all_data != "y":
-    preprocess_data()
-
-event_X_train = pd.read_pickle(os.path.join(load_path, "event_X_train.pkl"))
-event_X_test = pd.read_pickle(os.path.join(load_path, "event_X_test.pkl"))
-
-y_train = pd.read_pickle(os.path.join(load_path, "y_train.pkl"))
-y_test = pd.read_pickle(os.path.join(load_path, "y_test.pkl"))
-
-object_X_train = np.load(os.path.join(load_path, "object_X_train.npy"))
-object_X_test = np.load(os.path.join(load_path, "object_X_test.npy"))
-
-ACTIVATION = "relu"
-
-
-def f1_score(y_true, y_pred):  # taken from old keras source code
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-    precision = true_positives / (predicted_positives + K.epsilon())
-    recall = true_positives / (possible_positives + K.epsilon())
-    f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
-    return f1_val
-
+load_path = config["paths"]["processed_path"]
+data = load_preprocessed_data()
 
 METRICS = [
     keras.metrics.BinaryAccuracy(name="accuracy"),
     keras.metrics.AUC(name="AUC"),
-    f1_score,
+    train.f1_score,
 ]
 
 # stops training early if score doesn't improve
 early_stopping = tf.keras.callbacks.EarlyStopping(
-    monitor="val_loss",
+    monitor=config["RNN_params"]["monitor"],
     verbose=1,
     patience=3,
-    mode="auto",
+    mode=config["RNN_params"]["mode"],
     restore_best_weights=True,
 )
 
 class_weights = class_weight.compute_class_weight(
-    class_weight="balanced", classes=np.unique(y_train), y=y_train
+    class_weight="balanced", classes=np.unique(data["y_train"]), y=data["y_train"]
 )
 class_weights = {
-    _class: weight for _class, weight in zip(np.unique(y_train), class_weights)
+    _class: weight for _class, weight in zip(np.unique(data["y_train"]), class_weights)
 }
 
-MONITOR = "val_loss"
-MODE = "auto"
-
-# CREATING AND TRAINING MODEL
+MONITOR = config["RNN_params"]["monitor"]
+MODE = config["RNN_params"]["mode"]
 
 
 def create_model(params: dict):
@@ -90,15 +62,19 @@ def create_model(params: dict):
     Returns:
         keras model: a compiled model
     """
-    DNN_model = Input(shape=event_X_train.shape[1])
+    ACTIVATION = config["RNN_params"]["activation"]
 
+    DNN_model = Input(shape=data["event_X_train"].shape[1])
     RNN_model = Sequential()
 
     if params["lstm_layer_2"]:
         RNN_model.add(
             LSTM(
                 params["lstm_units"],
-                input_shape=(object_X_train.shape[1], object_X_train.shape[2]),
+                input_shape=(
+                    data["object_X_train"].shape[1],
+                    data["object_X_train"].shape[2],
+                ),
                 activation="tanh",
                 return_sequences=True,
                 recurrent_dropout=params["redropout"],
@@ -119,7 +95,10 @@ def create_model(params: dict):
         RNN_model.add(
             LSTM(
                 params["lstm_units"],
-                input_shape=(object_X_train.shape[1], object_X_train.shape[2]),
+                input_shape=(
+                    data["object_X_train"].shape[1],
+                    data["object_X_train"].shape[2],
+                ),
                 activation="tanh",
                 recurrent_dropout=params["redropout"],
             )
@@ -139,7 +118,7 @@ def create_model(params: dict):
 
     OPTIMIZER = keras.optimizers.Adam(
         learning_rate=params["lr"],
-        clipnorm=0.001,
+        clipnorm=config["RNN_params"]["clipnorm"],
     )
 
     model = Model(inputs=[DNN_model, RNN_model.input], outputs=merged_model)
@@ -163,18 +142,20 @@ def objective(trial):
     model = create_model(params)
 
     model.fit(
-        [event_X_train, object_X_train],
-        y_train,
+        [data["event_X_train"], data["object_X_train"]],
+        data["y_train"],
         batch_size=params["batch_size"],
         class_weight=class_weights,
         epochs=100,
         callbacks=[early_stopping, KerasPruningCallback(trial, "val_loss")],
-        validation_data=([event_X_test, object_X_test], y_test),
+        validation_data=([data["event_X_test"], data["object_X_test"]], data["y_test"]),
         shuffle=True,
         verbose=1,
     )
 
-    score = model.evaluate([event_X_test, object_X_test], y_test)
+    score = model.evaluate(
+        [data["event_X_test"], data["object_X_test"]], data["y_test"]
+    )
     return -score[0]
 
 
@@ -189,9 +170,9 @@ def main():
         direction="maximize",
         sampler=optuna.samplers.TPESampler(),
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=1, n_min_trials=5),
-        study_name=study_name,
-        storage=storage_name,
-        load_if_exists=True,
+        # study_name=study_name,
+        # storage=storage_name,
+        # load_if_exists=True,
     )
 
     study.optimize(objective, n_trials=200, n_jobs=-1, show_progress_bar=True)

@@ -9,14 +9,19 @@ import seaborn as sns
 import shap
 import xgboost as xgb
 import yaml
-from sklearn.metrics import (PrecisionRecallDisplay, confusion_matrix,
-                             f1_score, precision_recall_curve, roc_auc_score,
-                             roc_curve)
+from sklearn.metrics import (
+    PrecisionRecallDisplay,
+    confusion_matrix,
+    f1_score,
+    precision_recall_curve,
+    roc_auc_score,
+    roc_curve,
+)
 from src.features.build_features import load_preprocessed_data
 from tensorflow import keras
 
-plt.style.use("ggplot")
 config = yaml.safe_load(open("src/config.yaml"))
+plt.style.use(config["visuals"]["style"])
 
 # maybe write code to automatically create a latex document or something based on these plots
 

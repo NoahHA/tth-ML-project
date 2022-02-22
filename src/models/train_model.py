@@ -16,6 +16,16 @@ from tensorflow import keras
 config = yaml.safe_load(open("src/config.yaml"))
 
 
+def f1_score(y_true, y_pred):  # taken from old keras source code
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    recall = true_positives / (possible_positives + K.epsilon())
+    f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
+    return f1_val
+
+
 def make_RNN_model(data: dict):
     """Defines and compiles a recurrent neural network model
 
@@ -25,15 +35,6 @@ def make_RNN_model(data: dict):
     Returns:
         model: A compiled RNN model
     """
-
-    def f1_score(y_true, y_pred):  # taken from old keras source code
-        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-        predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-        precision = true_positives / (predicted_positives + K.epsilon())
-        recall = true_positives / (possible_positives + K.epsilon())
-        f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
-        return f1_val
 
     ACTIVATION = config["RNN_params"]["activation"]
     NUM_LAYERS = config["RNN_params"]["num_merged_layers"]
@@ -144,7 +145,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a neural net")
-
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
     parser.add_argument(
         "--model_name",
@@ -155,6 +155,7 @@ if __name__ == "__main__":
         "--all_data",
         type=bool,
         default=True,
+        choices=["True", "False"],
         help="Whether to use all the background data",
     )
 
