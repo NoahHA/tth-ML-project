@@ -8,18 +8,15 @@ import pandas as pd
 import seaborn as sns
 import shap
 import xgboost as xgb
-from sklearn.metrics import (
-    PrecisionRecallDisplay,
-    confusion_matrix,
-    f1_score,
-    precision_recall_curve,
-    roc_auc_score,
-    roc_curve,
-)
+import yaml
+from sklearn.metrics import (PrecisionRecallDisplay, confusion_matrix,
+                             f1_score, precision_recall_curve, roc_auc_score,
+                             roc_curve)
 from src.features.build_features import load_preprocessed_data
 from tensorflow import keras
 
 plt.style.use("ggplot")
+config = yaml.safe_load(open("src/config.yaml"))
 
 # maybe write code to automatically create a latex document or something based on these plots
 
@@ -47,15 +44,16 @@ def make_training_curves(history):
 
 
 def make_significance(data, preds):
-    interim_path = r"data/interim"
+    interim_path = config["paths"]["interim_path"]
     X_test = pd.read_pickle(os.path.join(interim_path, "X_test.pkl"))
     test_weight = X_test["xs_weight"].values
     test_frac = len(data["y_test"]) / len(data["y_train"])
 
-    thresholds = np.linspace(0, 1, 50)
+    n_thresholds = 50
+    thresholds = np.linspace(0, 1, n_thresholds)
     significance = np.zeros(len(thresholds), dtype=float)
 
-    lum = 140e3
+    lum = config["data"]["lum"]
     epsilon = 1e-5
 
     sg = np.zeros(len(thresholds))
@@ -253,7 +251,7 @@ def save_plot(model_name: str, fig_name: str):
         fig_name (str): name of figure to be saved,
             without any filetype e.g. "bar_plot"
     """
-    fig_path = r"reports/figures"
+    fig_path = config["paths"]["fig_path"]
     plot_path = os.path.join(fig_path, model_name)
 
     if not os.path.exists(plot_path):
@@ -263,8 +261,8 @@ def save_plot(model_name: str, fig_name: str):
 
 
 def make_shap_plots(model_name, model, data):
-    n_bg = 10
-    n_values = 1000
+    n_bg = config["visuals"]["shap_n_bg"]
+    n_values = config["visuals"]["shap_n_values"]
 
     if "xgboost" in model_name:
         explainer = shap.TreeExplainer(model)
@@ -308,8 +306,8 @@ def main(args):
         )
         preds = model.predict([data["event_X_test"], data["object_X_test"]])
 
-    plot_path = r"reports/figures"
-    plot_path = os.path.join(plot_path, model_name)
+    fig_path = config["paths"]["fig_path"]
+    plot_path = os.path.join(fig_path, model_name)
     if not os.path.exists(plot_path):
         os.mkdir(plot_path)
 

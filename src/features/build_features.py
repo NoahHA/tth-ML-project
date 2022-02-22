@@ -6,38 +6,17 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import yaml
 from keras.preprocessing import sequence
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 
 warnings.filterwarnings("ignore")
+config = yaml.safe_load(open("src/config.yaml"))
 
-
-event_cols = [
-    "BiasedDPhi",
-    "DiJet_mass",
-    "HT",
-    "InputMet_InputJet_mindPhi",
-    "InputMet_pt",
-    "MHT_pt",
-    "MinChi",
-    "MinOmegaHat",
-    "MinOmegaTilde",
-    "ncleanedBJet",
-    "ncleanedJet",
-]
-
-object_cols = [
-    "cleanedJet_pt",
-    "cleanedJet_area",
-    "cleanedJet_btagDeepB",
-    "cleanedJet_chHEF",
-    "cleanedJet_eta",
-    "cleanedJet_mass",
-    "cleanedJet_neHEF",
-    "cleanedJet_phi",
-]
+event_cols = config["data"]["event_cols"]
+object_cols = config["data"]["object_cols"]
 
 
 def add_background(data_path, background, full_df):
@@ -53,7 +32,8 @@ def load_data():
     include_FL = input("Include Fully-Leptonic data? (y/n)\n")
     include_FH = input("Include Fully-Hadronic data? (y/n)\n")
 
-    data_path = r"data/raw"
+    print("LOADING DATA...")
+    data_path = config["paths"]["raw_path"]
     higgs_df = pd.read_hdf(os.path.join(data_path, "ttH.hd5"))
     higgs_df["signal"] = 1
 
@@ -67,14 +47,14 @@ def load_data():
 
     # removes useless columns
     full_df = shuffle(full_df)
-    useful_cols = ["signal", "xs_weight"]
+    useful_cols = config["data"]["useful_cols"]
     df = full_df[event_cols + object_cols + useful_cols]
 
     return df
 
 
 def unskew_data(df):
-    untransformed_cols = ["ncleanedBJet", "ncleanedJet", "BiasedDPhi", "signal"]
+    untransformed_cols = config["data"]["untransformed_cols"]
     transformed_cols = list(set(event_cols) - set(untransformed_cols))
 
     # takes the log of each column to remove skewness
@@ -107,13 +87,13 @@ def expand_lists(df, max_jets):
     return temp_df
 
 
-def split_data(df):
+def split_data(df: pd.DataFrame):
     # splits data into training and validation
     X, y = df.drop("signal", axis=1), df["signal"]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, stratify=y, random_state=1
     )
-    interim_path = r"data/interim"
+    interim_path = config["paths"]["interim_path"]
     X_train.to_pickle(os.path.join(interim_path, "X_train.pkl"))
     X_test.to_pickle(os.path.join(interim_path, "X_test.pkl"))
 
@@ -129,9 +109,8 @@ def split_data(df):
 
 
 def preprocess_data():
-    print("LOADING AND PREPROCESSING DATA...")
-
     df = load_data()
+    print("PROCESSING DATA...")
     max_jets = df["ncleanedJet"].max()
     event_data, object_data, y_data = split_data(df)
 
@@ -161,7 +140,7 @@ def preprocess_data():
 
 def save_data(event_data, object_data, y_data):
     print("SAVING DATA...")
-    save_path = r"data/processed"
+    save_path = config["paths"]["processed_path"]
 
     combined_data = {
         "event_X_train": event_data["event_X_train"],
@@ -193,7 +172,7 @@ def load_preprocessed_data(use_all_data=True):
             y_train,
             y_test
     """
-    load_path = r"data/processed"
+    load_path = config["paths"]["processed_paths"]
 
     if not use_all_data:
         preprocess_data()

@@ -1,0 +1,58 @@
+RNN_params:
+  lr: 0.001
+  activation: 'relu'
+  num_merged_layers: 2
+  clipnorm: 0.001
+  lstm_units: 200
+  merged_units: 100
+  batch_size: 128
+  monitor: val_loss
+  mode: auto
+
+visuals:
+  style: ggplot
+  shap_n_bg: 10
+  shap_n_values: 1000
+
+paths:
+  interim_path: data/interim
+  fig_path: reports/figures
+  raw_path: data/raw
+  processed_path: data/processed
+
+data:
+  lum: 140_000
+
+  event_cols:
+    - BiasedDPhi
+    - DiJet_mass
+    - HT
+    - InputMet_InputJet_mindPhi
+    - InputMet_pt
+    - MHT_pt
+    - MinChi
+    - MinOmegaHat
+    - MinOmegaTilde
+    - ncleanedBJet
+    - ncleanedJet
+
+  object_cols:
+    - cleanedJet_pt
+    - cleanedJet_area
+    - cleanedJet_btagDeepB
+    - cleanedJet_chHEF
+    - cleanedJet_eta
+    - cleanedJet_mass
+    - cleanedJet_neHEF
+    - cleanedJet_phi
+
+  useful_cols:
+    - signal
+    - xs_weight
+
+  untransformed_cols: 
+    - ncleanedBJet
+    - ncleanedJet
+    - BiasedDPhi
+    - signal
+    

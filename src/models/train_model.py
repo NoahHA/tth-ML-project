@@ -2,9 +2,9 @@ import argparse
 import os
 
 import keras.backend as K
-import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+import yaml
 from keras import Input, Model
 from keras.layers import LSTM, BatchNormalization, Concatenate, Dense
 from keras.models import Sequential
@@ -12,6 +12,8 @@ from sklearn.utils import class_weight
 from src.features.build_features import load_preprocessed_data
 from src.visualization.visualize import make_training_curves, save_plot
 from tensorflow import keras
+
+config = yaml.safe_load(open("src/config.yaml"))
 
 
 def make_RNN_model(data: dict):
@@ -33,13 +35,12 @@ def make_RNN_model(data: dict):
         f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
         return f1_val
 
-    LR = 0.001
-    ACTIVATION = "relu"
-    num_layers = 2
+    ACTIVATION = config["RNN_params"]["activation"]
+    NUM_LAYERS = config["RNN_params"]["num_merged_layers"]
 
     optimizer = keras.optimizers.Adam(
-        learning_rate=LR,
-        clipnorm=0.001,
+        learning_rate=config["RNN_params"]["lr"],
+        clipnorm=config["RNN_params"]["clipnorm"],
     )
     metrics = [
         keras.metrics.BinaryAccuracy(name="accuracy"),
@@ -52,7 +53,7 @@ def make_RNN_model(data: dict):
     RNN_model = Sequential(
         [
             LSTM(
-                200,
+                config["RNN_params"]["lstm_units"],
                 input_shape=(
                     data["object_X_train"].shape[1],
                     data["object_X_train"].shape[2],
@@ -66,9 +67,11 @@ def make_RNN_model(data: dict):
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])
 
-    for _ in range(num_layers):
+    for _ in range(NUM_LAYERS):
         merged_model = BatchNormalization(epsilon=0.01)(merged_model)
-        merged_model = Dense(100, activation=ACTIVATION)(merged_model)
+        merged_model = Dense(
+            config["RNN_params"]["merged_units"], activation=ACTIVATION
+        )(merged_model)
 
     merged_model = Dense(1, activation="sigmoid")(merged_model)
 
@@ -79,7 +82,7 @@ def make_RNN_model(data: dict):
 
 
 def train_RNN(epochs: int, model_filepath: str, data: dict):
-    BATCH_SIZE = 64
+    BATCH_SIZE = config["RNN_params"]["batch_size"]
     class_weights = class_weight.compute_class_weight(
         class_weight="balanced", classes=np.unique(data["y_train"]), y=data["y_train"]
     )
@@ -88,8 +91,8 @@ def train_RNN(epochs: int, model_filepath: str, data: dict):
         for _class, weight in zip(np.unique(data["y_train"]), class_weights)
     }
 
-    MONITOR = "val_loss"
-    MODE = "auto"
+    MONITOR = config["RNN_params"]["monitor"]
+    MODE = config["RNN_params"]["mode"]
 
     # stops training early if score doesn't improve
     early_stopping = tf.keras.callbacks.EarlyStopping(
@@ -125,7 +128,7 @@ def train_RNN(epochs: int, model_filepath: str, data: dict):
         verbose=1,
     )
 
-    return (history, model)
+    return history
 
 
 def main(args):
@@ -134,7 +137,7 @@ def main(args):
     MODEL_FILEPATH = os.path.join("models", MODEL_NAME)
     data = load_preprocessed_data(args.all_data)
 
-    history, model = train_RNN(EPOCHS, MODEL_FILEPATH, data)
+    history = train_RNN(EPOCHS, MODEL_FILEPATH, data)
     make_training_curves(history)
     save_plot(MODEL_NAME, "training_curves")
 
