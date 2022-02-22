@@ -104,6 +104,7 @@ def create_model(params: dict):
             )
         )
         RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
+    RNN_model.add(Dense(units=params["output_units"], activation=ACTIVATION))
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])
 
@@ -131,6 +132,7 @@ def objective(trial):
     params = {
         "lstm_units": trial.suggest_int("lstm_units", 40, 400, 20),
         "merged_units": trial.suggest_int("merged_units", 40, 400, 20),
+        "output_units": trial.suggest_int("output_units", 1, 200),
         "dropout": trial.suggest_uniform("dropout", 0.0, 0.5),
         "redropout": trial.suggest_uniform("redropout", 0.0, 0.5),
         "num_merged_layers": trial.suggest_int("num_merged_layers", 1, 4),
@@ -156,7 +158,7 @@ def objective(trial):
     score = model.evaluate(
         [data["event_X_test"], data["object_X_test"]], data["y_test"]
     )
-    return -score[0]
+    return score[0]
 
 
 def main():
@@ -165,17 +167,16 @@ def main():
     study_name = "bayesian_opt_v2"  # Unique identifier of the study.
     storage_name = f"sqlite:///models/{study_name}.db"
 
-    # optuna.delete_study(study_name=study_name, storage=storage_name)
     study = optuna.create_study(
-        direction="maximize",
+        direction="minimize",
         sampler=optuna.samplers.TPESampler(),
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=1, n_min_trials=5),
-        # study_name=study_name,
-        # storage=storage_name,
-        # load_if_exists=True,
+        study_name=study_name,
+        storage=storage_name,
+        load_if_exists=True,
     )
 
-    study.optimize(objective, n_trials=200, n_jobs=-1, show_progress_bar=True)
+    study.optimize(objective, n_trials=200, n_jobs=1, show_progress_bar=True)
 
 
 if __name__ == "__main__":

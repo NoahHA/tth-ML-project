@@ -5,6 +5,7 @@ RNN_params:
   clipnorm: 0.001
   lstm_units: 200
   merged_units: 100
+  output_units: 10
   batch_size: 128
   monitor: val_loss
   mode: auto

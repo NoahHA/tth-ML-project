@@ -172,7 +172,7 @@ def load_preprocessed_data(use_all_data=True):
             y_train,
             y_test
     """
-    load_path = config["paths"]["processed_paths"]
+    load_path = config["paths"]["processed_path"]
 
     if not use_all_data:
         preprocess_data()

@@ -6,7 +6,13 @@ import numpy as np
 import tensorflow as tf
 import yaml
 from keras import Input, Model
-from keras.layers import LSTM, BatchNormalization, Concatenate, Dense
+from keras.layers import (
+    LSTM,
+    BatchNormalization,
+    Concatenate,
+    Dense,
+    LayerNormalization,
+)
 from keras.models import Sequential
 from sklearn.utils import class_weight
 from src.features.build_features import load_preprocessed_data
@@ -51,19 +57,21 @@ def make_RNN_model(data: dict):
 
     DNN_model = Input(shape=data["event_X_train"].shape[1])
 
-    RNN_model = Sequential(
-        [
-            LSTM(
-                config["RNN_params"]["lstm_units"],
-                input_shape=(
-                    data["object_X_train"].shape[1],
-                    data["object_X_train"].shape[2],
-                ),
-                activation="tanh",
-                unroll=False,
+    RNN_model = Sequential()
+    RNN_model.add(
+        LSTM(
+            units=config["RNN_params"]["lstm_units"],
+            input_shape=(
+                data["object_X_train"].shape[1],
+                data["object_X_train"].shape[2],
             ),
-            BatchNormalization(epsilon=0.01),
-        ]
+            activation="tanh",
+            unroll=False,
+        )
+    )
+    RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
+    RNN_model.add(
+        Dense(units=config["RNN_params"]["output_units"], activation=ACTIVATION)
     )
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])
@@ -71,7 +79,7 @@ def make_RNN_model(data: dict):
     for _ in range(NUM_LAYERS):
         merged_model = BatchNormalization(epsilon=0.01)(merged_model)
         merged_model = Dense(
-            config["RNN_params"]["merged_units"], activation=ACTIVATION
+            units=config["RNN_params"]["merged_units"], activation=ACTIVATION
         )(merged_model)
 
     merged_model = Dense(1, activation="sigmoid")(merged_model)
