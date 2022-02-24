@@ -7,14 +7,8 @@ import src.models.train_model as train
 import tensorflow as tf
 import yaml
 from keras import Input, Model
-from keras.layers import (
-    LSTM,
-    BatchNormalization,
-    Concatenate,
-    Dense,
-    Dropout,
-    LayerNormalization,
-)
+from keras.layers import (LSTM, BatchNormalization, Concatenate, Dense,
+                          Dropout, LayerNormalization)
 from keras.models import Sequential
 from optuna.integration.keras import KerasPruningCallback
 from sklearn.utils import class_weight
@@ -23,7 +17,6 @@ from tensorflow import keras
 
 config = yaml.safe_load(open("src/config.yaml"))
 
-load_path = config["paths"]["processed_path"]
 data = load_preprocessed_data()
 
 METRICS = [

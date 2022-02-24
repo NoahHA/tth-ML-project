@@ -6,13 +6,8 @@ import numpy as np
 import tensorflow as tf
 import yaml
 from keras import Input, Model
-from keras.layers import (
-    LSTM,
-    BatchNormalization,
-    Concatenate,
-    Dense,
-    LayerNormalization,
-)
+from keras.layers import (LSTM, BatchNormalization, Concatenate, Dense,
+                          Dropout, LayerNormalization)
 from keras.models import Sequential
 from sklearn.utils import class_weight
 from src.features.build_features import load_preprocessed_data
@@ -20,6 +15,12 @@ from src.visualization.visualize import make_training_curves, save_plot
 from tensorflow import keras
 
 config = yaml.safe_load(open("src/config.yaml"))
+
+
+class MonteCarloDropout(Dropout):
+    """Keeps dropout on in testing mode for uncertainty predictions"""
+    def call(self, inputs):
+        return super().call(inputs, training=True)
 
 
 def f1_score(y_true, y_pred):  # taken from old keras source code
@@ -44,12 +45,13 @@ def make_RNN_model(data: dict):
 
     ACTIVATION = config["RNN_params"]["activation"]
     NUM_LAYERS = config["RNN_params"]["num_merged_layers"]
-
-    optimizer = keras.optimizers.Adam(
+    DROPOUT = config["RNN_params"]["dropout"]
+    REDROPOUT = config["RNN_params"]["redropout"]
+    OPTIMIZER = keras.optimizers.Adam(
         learning_rate=config["RNN_params"]["lr"],
         clipnorm=config["RNN_params"]["clipnorm"],
     )
-    metrics = [
+    METRICS = [
         keras.metrics.BinaryAccuracy(name="accuracy"),
         keras.metrics.AUC(name="AUC"),
         f1_score,
@@ -65,19 +67,28 @@ def make_RNN_model(data: dict):
                 data["object_X_train"].shape[1],
                 data["object_X_train"].shape[2],
             ),
-            activation="tanh",
-            unroll=False,
+            return_sequences=True,
+            recurrent_dropout=REDROPOUT,
+        )
+    )
+    RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
+    RNN_model.add(
+        LSTM(
+            units=config["RNN_params"]["lstm_units"],
+            recurrent_dropout=REDROPOUT,
         )
     )
     RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
     RNN_model.add(
         Dense(units=config["RNN_params"]["output_units"], activation=ACTIVATION)
     )
+    RNN_model.add(BatchNormalization(epsilon=0.01))
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])
 
     for _ in range(NUM_LAYERS):
         merged_model = BatchNormalization(epsilon=0.01)(merged_model)
+        merged_model = MonteCarloDropout(DROPOUT)(merged_model)
         merged_model = Dense(
             units=config["RNN_params"]["merged_units"], activation=ACTIVATION
         )(merged_model)
@@ -85,7 +96,7 @@ def make_RNN_model(data: dict):
     merged_model = Dense(1, activation="sigmoid")(merged_model)
 
     model = Model(inputs=[DNN_model, RNN_model.input], outputs=merged_model)
-    model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=metrics)
+    model.compile(optimizer=OPTIMIZER, loss="binary_crossentropy", metrics=METRICS)
 
     return model
 
