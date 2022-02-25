@@ -1,9 +1,6 @@
 import os
 import pickle
 
-# ignores all warnings
-import warnings
-
 import numpy as np
 import pandas as pd
 import yaml
@@ -12,19 +9,19 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 
-warnings.filterwarnings("ignore")
 config = yaml.safe_load(open("src/config.yaml"))
 
 event_cols = config["data"]["event_cols"]
 object_cols = config["data"]["object_cols"]
 
 
-def add_background(data_path, background, full_df):
+def load_background(data_path, background, df):
+    """"loads a given hdf file and appends it to the df"""
     bg_path = os.path.join(data_path, f"{background}.hd5")
     bg_df = pd.read_hdf(bg_path)
     bg_df["signal"] = 0
 
-    return full_df.append(bg_df, ignore_index=True)
+    return bg_df
 
 
 def load_data():
@@ -39,11 +36,14 @@ def load_data():
 
     full_df = higgs_df
     if include_SL == "y":
-        full_df = add_background(data_path, "ttsemileptonic", full_df)
+        bg_df = load_background(data_path, "ttsemileptonic", full_df)
+        full_df = full_df.append(bg_df, ignore_index=True)
     if include_FL == "y":
-        full_df = add_background(data_path, "fully_leptonic", full_df)
+        bg_df = load_background(data_path, "fully_leptonic", full_df)
+        full_df = full_df.append(bg_df, ignore_index=True)
     if include_FH == "y":
-        full_df = add_background(data_path, "fully_hadronic", full_df)
+        bg_df = load_background(data_path, "fully_hadronic", full_df)
+        full_df = full_df.append(bg_df, ignore_index=True)
 
     # removes useless columns
     full_df = shuffle(full_df)
