@@ -172,10 +172,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--all_data",
-        type=bool,
-        default=True,
-        choices=["True", "False"],
-        help="Whether to use all the background data",
+        action="store_true",
+        help="Use all of the available datasets",
     )
 
     args = parser.parse_args()

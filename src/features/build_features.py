@@ -1,3 +1,4 @@
+import argparse
 import os
 import pickle
 
@@ -15,42 +16,38 @@ event_cols = config["data"]["event_cols"]
 object_cols = config["data"]["object_cols"]
 
 
-def load_background(data_path, background, df):
-    """"loads a given hdf file and appends it to the df"""
-    bg_path = os.path.join(data_path, f"{background}.hd5")
-    bg_df = pd.read_hdf(bg_path)
-    bg_df["signal"] = 0
-
-    return bg_df
-
-
-def load_data():
-    include_SL = input("Include Semi-Leptonic data? (y/n)\n")
-    include_FL = input("Include Fully-Leptonic data? (y/n)\n")
-    include_FH = input("Include Fully-Hadronic data? (y/n)\n")
-
-    print("LOADING DATA...")
+def load_dataset(dataset):
+    """ "loads a given hdf file"""
     data_path = config["paths"]["raw_path"]
-    higgs_df = pd.read_hdf(os.path.join(data_path, "ttH.hd5"))
-    higgs_df["signal"] = 1
-
-    full_df = higgs_df
-    if include_SL == "y":
-        bg_df = load_background(data_path, "ttsemileptonic", full_df)
-        full_df = full_df.append(bg_df, ignore_index=True)
-    if include_FL == "y":
-        bg_df = load_background(data_path, "fully_leptonic", full_df)
-        full_df = full_df.append(bg_df, ignore_index=True)
-    if include_FH == "y":
-        bg_df = load_background(data_path, "fully_hadronic", full_df)
-        full_df = full_df.append(bg_df, ignore_index=True)
-
-    # removes useless columns
-    full_df = shuffle(full_df)
-    useful_cols = config["data"]["useful_cols"]
-    df = full_df[event_cols + object_cols + useful_cols]
+    dataset_path = os.path.join(data_path, dataset)
+    df = pd.read_hdf(dataset_path)
 
     return df
+
+
+def load_data(load_all: bool = True):
+    backgrounds = ["ttsemileptonic.hd5", "fully_leptonic.hd5", "fully_hadronic.hd5"]
+    signal = "ttH.hd5"
+
+    if not load_all:
+        for background in backgrounds[:]:
+            include = input(f"Include {background} dataset? (y/n)\n")
+            if include != "y":
+                backgrounds.remove(background)
+
+    full_df = load_dataset(signal)
+    full_df["signal"] = 1
+
+    for background in backgrounds:
+        bg_df = load_dataset(background)
+        bg_df["signal"] = 0
+        full_df = full_df.append(bg_df, ignore_index=True)
+
+    shuffled_df = shuffle(full_df)
+    useful_cols = config["data"]["useful_cols"] + event_cols + object_cols
+    final_df = shuffled_df[useful_cols]
+
+    return final_df
 
 
 def unskew_data(df):
@@ -93,68 +90,56 @@ def split_data(df: pd.DataFrame):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, stratify=y, random_state=1
     )
-    interim_path = config["paths"]["interim_path"]
-    X_train.to_pickle(os.path.join(interim_path, "X_train.pkl"))
-    X_test.to_pickle(os.path.join(interim_path, "X_test.pkl"))
 
     # divides training data into object level and event level features
     event_X_train, event_X_test = X_train[event_cols], X_test[event_cols]
     object_X_train, object_X_test = X_train[object_cols], X_test[object_cols]
 
-    event_data = {"event_X_train": event_X_train, "event_X_test": event_X_test}
-    object_data = {"object_X_train": object_X_train, "object_X_test": object_X_test}
-    y_data = {"y_train": y_train, "y_test": y_test}
-
-    return (event_data, object_data, y_data)
-
-
-def preprocess_data():
-    df = load_data()
-    print("PROCESSING DATA...")
-    max_jets = df["ncleanedJet"].max()
-    event_data, object_data, y_data = split_data(df)
-
-    scaler = StandardScaler()
-    event_data["event_X_train"][event_cols] = scaler.fit_transform(
-        event_data["event_X_train"][event_cols].values
-    )
-    event_data["event_X_test"][event_cols] = scaler.transform(
-        event_data["event_X_test"][event_cols].values
-    )
-
-    for data in object_data.keys():
-        object_data[data] = pad_data(object_data[data])
-        object_data[data] = expand_lists(object_data[data], max_jets)
-
-    nz = np.any(object_data["object_X_train"], -1)
-    object_data["object_X_train"][nz] = scaler.fit_transform(
-        object_data["object_X_train"][nz]
-    )
-    nz = np.any(object_data["object_X_test"], -1)
-    object_data["object_X_test"][nz] = scaler.transform(
-        object_data["object_X_test"][nz]
-    )
-
-    save_data(event_data, object_data, y_data)
-
-
-def save_data(event_data, object_data, y_data):
-    print("SAVING DATA...")
-    save_path = config["paths"]["processed_path"]
-
-    combined_data = {
-        "event_X_train": event_data["event_X_train"],
-        "event_X_test": event_data["event_X_test"],
-        "object_X_train": object_data["object_X_train"],
-        "object_X_test": object_data["object_X_test"],
-        "y_train": y_data["y_train"],
-        "y_test": y_data["y_test"],
+    all_data = {
+        "X_train": X_train,
+        "X_test": X_test,
+        "event_X_train": event_X_train,
+        "event_X_test": event_X_test,
+        "object_X_train": object_X_train,
+        "object_X_test": object_X_test,
+        "y_train": y_train,
+        "y_test": y_test,
     }
 
-    with open(os.path.join(save_path, "processed_data.pickle"), "wb") as handle:
-        pickle.dump(combined_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    return all_data
 
-    print("DATA SAVED")
+
+def preprocess_data(all_data):
+    max_jets = all_data["X_train"]["ncleanedJet"].max()
+
+    scaler = StandardScaler()
+    all_data["event_X_train"][event_cols] = scaler.fit_transform(
+        all_data["event_X_train"][event_cols].values
+    )
+    all_data["event_X_test"][event_cols] = scaler.transform(
+        all_data["event_X_test"][event_cols].values
+    )
+
+    all_data["object_X_train"] = pad_data(all_data["object_X_train"])
+    all_data["object_X_test"] = pad_data(all_data["object_X_test"])
+    all_data["object_X_train"] = expand_lists(all_data["object_X_train"], max_jets)
+    all_data["object_X_test"] = expand_lists(all_data["object_X_test"], max_jets)
+
+    nz = np.any(all_data["object_X_train"], -1)
+    all_data["object_X_train"][nz] = scaler.fit_transform(
+        all_data["object_X_train"][nz]
+    )
+    nz = np.any(all_data["object_X_test"], -1)
+    all_data["object_X_test"][nz] = scaler.transform(all_data["object_X_test"][nz])
+
+    return all_data
+
+
+def save_data(data):
+    save_path = config["paths"]["processed_path"]
+
+    with open(os.path.join(save_path, "processed_data.pickle"), "wb") as handle:
+        pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def load_preprocessed_data(use_all_data=True):
@@ -165,17 +150,18 @@ def load_preprocessed_data(use_all_data=True):
 
     Returns:
         dict: data dictionary containing:
-            event_X_train,
-            event_X_test,
-            object_X_train,
-            object_X_test,
-            y_train,
-            y_test
+            X_train, X_test,
+            event_X_train, event_X_test,
+            object_X_train, object_X_test,
+            y_train, y_test,
     """
     load_path = config["paths"]["processed_path"]
 
     if not use_all_data:
-        preprocess_data()
+        df = load_data(load_all=False)
+        all_data = split_data(df)
+        preprocessed_data = preprocess_data(all_data)
+        save_data(preprocessed_data)
 
     with open(os.path.join(load_path, "processed_data.pickle"), "rb") as handle:
         combined_data = pickle.load(handle)
@@ -183,5 +169,22 @@ def load_preprocessed_data(use_all_data=True):
     return combined_data
 
 
+def main(args):
+    df = load_data(args.all_data)
+    all_data = split_data(df)
+    preprocessed_data = preprocess_data(all_data)
+    save_data(preprocessed_data)
+
+
 if __name__ == "__main__":
-    preprocess_data()
+    parser = argparse.ArgumentParser(
+        description="Preprocess and Save the Model Dataset"
+    )
+    parser.add_argument(
+        "--all_data",
+        action="store_true",
+        help="Use all of the available datasets",
+    )
+
+    args = parser.parse_args()
+    main(args)

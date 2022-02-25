@@ -4,7 +4,6 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import seaborn as sns
 import shap
 import xgboost as xgb
@@ -49,8 +48,7 @@ def make_training_curves(history):
 
 
 def make_significance(data, preds):
-    interim_path = config["paths"]["interim_path"]
-    X_test = pd.read_pickle(os.path.join(interim_path, "X_test.pkl"))
+    X_test = data['X_test']
     test_weight = X_test["xs_weight"].values
     test_frac = len(data["y_test"]) / len(data["y_train"])
 
