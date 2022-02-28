@@ -6,8 +6,14 @@ import numpy as np
 import tensorflow as tf
 import yaml
 from keras import Input, Model
-from keras.layers import (LSTM, BatchNormalization, Concatenate, Dense,
-                          Dropout, LayerNormalization)
+from keras.layers import (
+    LSTM,
+    BatchNormalization,
+    Concatenate,
+    Dense,
+    Dropout,
+    LayerNormalization,
+)
 from keras.models import Sequential
 from sklearn.utils import class_weight
 from src.features.build_features import load_preprocessed_data
@@ -40,7 +46,7 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
     Args:
         data (dict): data to be fed to the model
         use_mc_dropout (bool): whether or not to use dropout during testing
-        
+
     Returns:
         model: A compiled RNN model
     """
@@ -138,9 +144,10 @@ def train_RNN(epochs: int, model_filepath: str, data: dict, model, save_model):
         mode=MODE,
         save_freq="epoch",
     )
-    
+
     callbacks = [early_stopping]
-    if save_model: callbacks.append(checkpoint)
+    if save_model:
+        callbacks.append(checkpoint)
 
     history = model.fit(
         [data["event_X_train"], data["object_X_train"]],
