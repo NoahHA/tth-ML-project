@@ -7,8 +7,14 @@ import src.models.train_model as train
 import tensorflow as tf
 import yaml
 from keras import Input, Model
-from keras.layers import (LSTM, BatchNormalization, Concatenate, Dense,
-                          Dropout, LayerNormalization)
+from keras.layers import (
+    LSTM,
+    BatchNormalization,
+    Concatenate,
+    Dense,
+    Dropout,
+    LayerNormalization,
+)
 from keras.models import Sequential
 from optuna.integration.keras import KerasPruningCallback
 from sklearn.utils import class_weight

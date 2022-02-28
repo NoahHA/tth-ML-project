@@ -19,6 +19,7 @@ config = yaml.safe_load(open("src/config.yaml"))
 
 class MonteCarloDropout(Dropout):
     """Keeps dropout on in testing mode for uncertainty predictions"""
+
     def call(self, inputs):
         return super().call(inputs, training=True)
 
@@ -33,12 +34,13 @@ def f1_score(y_true, y_pred):  # taken from old keras source code
     return f1_val
 
 
-def make_RNN_model(data: dict):
+def make_RNN_model(data: dict, use_mc_dropout: bool = False):
     """Defines and compiles a recurrent neural network model
 
     Args:
         data (dict): data to be fed to the model
-
+        use_mc_dropout (bool): whether or not to use dropout during testing
+        
     Returns:
         model: A compiled RNN model
     """
@@ -88,7 +90,10 @@ def make_RNN_model(data: dict):
 
     for _ in range(NUM_LAYERS):
         merged_model = BatchNormalization(epsilon=0.01)(merged_model)
-        merged_model = MonteCarloDropout(DROPOUT)(merged_model)
+        if use_mc_dropout:
+            merged_model = MonteCarloDropout(DROPOUT)(merged_model)
+        else:
+            merged_model = Dropout(DROPOUT)(merged_model)
         merged_model = Dense(
             units=config["RNN_params"]["merged_units"], activation=ACTIVATION
         )(merged_model)
@@ -101,7 +106,7 @@ def make_RNN_model(data: dict):
     return model
 
 
-def train_RNN(epochs: int, model_filepath: str, data: dict):
+def train_RNN(epochs: int, model_filepath: str, data: dict, model, save_model):
     BATCH_SIZE = config["RNN_params"]["batch_size"]
     class_weights = class_weight.compute_class_weight(
         class_weight="balanced", classes=np.unique(data["y_train"]), y=data["y_train"]
@@ -133,8 +138,9 @@ def train_RNN(epochs: int, model_filepath: str, data: dict):
         mode=MODE,
         save_freq="epoch",
     )
-
-    model = make_RNN_model(data)
+    
+    callbacks = [early_stopping]
+    if save_model: callbacks.append(checkpoint)
 
     history = model.fit(
         [data["event_X_train"], data["object_X_train"]],
@@ -142,7 +148,7 @@ def train_RNN(epochs: int, model_filepath: str, data: dict):
         batch_size=BATCH_SIZE,
         class_weight=class_weights_dict,
         epochs=epochs,
-        callbacks=[early_stopping, checkpoint],
+        callbacks=callbacks,
         validation_data=([data["event_X_test"], data["object_X_test"]], data["y_test"]),
         shuffle=True,
         verbose=1,
@@ -153,13 +159,17 @@ def train_RNN(epochs: int, model_filepath: str, data: dict):
 
 def main(args):
     EPOCHS = args.epochs
+    SAVE_MODEL = args.save
+    MC_DROPOUT = args.mc_dropout
     MODEL_NAME = args.model_name
     MODEL_FILEPATH = os.path.join("models", MODEL_NAME)
     data = load_preprocessed_data(args.all_data)
 
-    history = train_RNN(EPOCHS, MODEL_FILEPATH, data)
-    make_training_curves(history)
-    save_plot(MODEL_NAME, "training_curves")
+    model = make_RNN_model(data, MC_DROPOUT)
+    history = train_RNN(EPOCHS, MODEL_FILEPATH, data, model, SAVE_MODEL)
+    if SAVE_MODEL:
+        make_training_curves(history)
+        save_plot(MODEL_NAME, "training_curves")
 
 
 if __name__ == "__main__":
@@ -174,6 +184,18 @@ if __name__ == "__main__":
         "--all_data",
         action="store_true",
         help="Use all of the available datasets",
+    )
+    parser.add_argument(
+        "--mc_dropout",
+        action="store_true",
+        default=False,
+        help="Add dropout during testing to calculate model uncertainty",
+    )
+    parser.add_argument(
+        "--save",
+        action="store_true",
+        default=False,
+        help="save model to models folder and save create training curves",
     )
 
     args = parser.parse_args()
