@@ -48,7 +48,7 @@ def make_training_curves(history):
 
 
 def make_significance(data, preds):
-    X_test = data['X_test']
+    X_test = data["X_test"]
     test_weight = X_test["xs_weight"].values
     test_frac = len(data["y_test"]) / len(data["y_train"])
 
@@ -107,26 +107,44 @@ def make_discriminator(data, preds, model_name):
         sg = [pred[0] for label, pred in zip(labels, preds) if label == 1]
         bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
 
-    n_bins = 75
-    alpha = 0.6
+    n_bins = 50
 
-    fig, axs = plt.subplots(2, figsize=(14, 8))
+    _, axs = plt.subplots(2, figsize=(14, 8))
 
     axs[0].yaxis.set_ticks([])
     axs[1].yaxis.set_ticks([])
 
-    fig.suptitle("Discriminator Plots")
     axs[0].hist(
-        sg, density=True, bins=n_bins, range=(0, 1), alpha=alpha, label="Signal"
+        sg,
+        density=True,
+        bins=n_bins,
+        range=(0, 1),
+        label="ttH (signal)",
+        histtype="step",
     )
     axs[0].hist(
-        bg, density=True, bins=n_bins, range=(0, 1), alpha=alpha, label="Background"
+        bg,
+        density=True,
+        bins=n_bins,
+        range=(0, 1),
+        label=r"$t\bar{t}$ (background)",
+        histtype="step",
     )
     axs[1].hist(
-        sg, density=False, bins=n_bins, range=(0, 1), alpha=alpha, label="Signal"
+        sg,
+        density=False,
+        bins=n_bins,
+        range=(0, 1),
+        label="ttH (signal)",
+        histtype="step",
     )
     axs[1].hist(
-        bg, density=False, bins=n_bins, range=(0, 1), alpha=alpha, label="Background"
+        bg,
+        density=False,
+        bins=n_bins,
+        range=(0, 1),
+        label=r"$t\bar{t}$ (background)",
+        histtype="step",
     )
 
     axs[0].set_title("Normalised")
@@ -137,16 +155,21 @@ def make_discriminator(data, preds, model_name):
 def make_confusion_matrix(labels, predictions, p=0.5):
     cm = confusion_matrix(labels, predictions > p, normalize="pred")
     plt.figure(figsize=(8, 8))
-    sns.heatmap(
+
+    heatmap = sns.heatmap(
         cm,
         annot=True,
-        xticklabels=["background", "signal"],
-        yticklabels=["background", "signal"],
+        xticklabels=[r"$t\bar{t}$ (background)", "ttH (signal)"],
+        yticklabels=[r"$t\bar{t}$ (background)", "ttH (signal)"],
+        linewidths=0.8,
         vmin=0,
         vmax=1,
     )
 
-    plt.title(f"Normalised Confusion Matrix at {round(p, 3)}")
+    for _, spine in heatmap.spines.items():
+        spine.set_visible(True)
+
+    plt.title(f"Confusion Matrix at {round(p, 3)}")
     plt.ylabel("Actual label")
     plt.xlabel("Predicted label")
 
@@ -156,6 +179,7 @@ def make_roc_curve(data, preds):
 
     plt.figure(figsize=(8, 8))
     plt.plot(fpr, tpr)
+    plt.plot([0, 1], [0, 1], "k--")
     plt.axis([0, 1, 0, 1])
     plt.title("ROC Curve")
     plt.xlabel("False Positive Rate")
@@ -178,17 +202,13 @@ def calculate_metrics(data, preds, plot_path):
     index = significance.argmax()
     best_threshold = thresholds[index]
     best_significance = significance[index]
-
     auc_score = roc_auc_score(data["y_test"], preds)
-    # accuracy = accuracy_score(y_test, preds)
-    # f1 = f1_score(y_test, preds)
 
-    metrics = {}
-    metrics["Best Threshold"] = best_threshold
-    metrics["Best Significance"] = best_significance
-    metrics["AUC"] = auc_score
-    # metrics["Accuracy"] = accuracy
-    # metrics["F1 Score"] = f1
+    metrics = {
+        "Best Threshold": best_threshold,
+        "Best Significance": best_significance,
+        "AUC": auc_score,
+    }
 
     with open(os.path.join(plot_path, "metrics.pickle"), "wb") as handle:
         pickle.dump(metrics, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -284,12 +304,16 @@ def make_shap_plots(model_name, model, data):
         )
         shap_values = shap_values[0][0]
 
+    plt.clf()
     make_summary_plot(shap_values, n_values, data)
     save_plot(model_name, "shap_summary")
+    plt.clf()
     make_summary_plot_abs(shap_values, n_values, data)
     save_plot(model_name, "shap_summary_abs")
+    plt.clf()
     make_bar_plots(shap_values, data)
     save_plot(model_name, "shap_bar_plots")
+    plt.clf()
     make_dependence_plots(shap_values, n_values, data)
     save_plot(model_name, "shap_dependence_plots")
 

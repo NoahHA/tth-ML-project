@@ -13,9 +13,13 @@ RNN_params:
   mode: auto
 
 visuals:
-  style: ggplot
+  style: 
+    - 'science'
+    - 'grid'
+    - 'notebook'
+    - 'high-contrast'
   shap_n_bg: 10
-  shap_n_values: 1000
+  shap_n_values: 500
 
 paths:
   interim_path: data/interim
