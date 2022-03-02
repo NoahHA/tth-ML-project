@@ -1,13 +1,13 @@
 RNN_params:
-  lr: 0.01
+  lr: 0.0033
   activation: 'relu'
-  dropout: 0.2
-  redropout: 0.45
+  dropout: 0.2810
+  redropout: 0.0794
   num_merged_layers: 1
   clipnorm: 0.001
-  lstm_units: 100
-  merged_units: 100
-  output_units: 14
+  lstm_units: 140
+  merged_units: 300
+  output_units: 179
   batch_size: 128
   monitor: val_loss
   mode: auto

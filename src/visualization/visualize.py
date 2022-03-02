@@ -90,7 +90,6 @@ def make_significance(data, preds):
     significance = sg / np.sqrt(bg + epsilon)
 
     plt.plot(thresholds, significance)
-    plt.title("Significance as a function of Threshold")
     plt.ylabel("Significance")
     plt.xlabel("Threshold")
 
@@ -169,7 +168,7 @@ def make_confusion_matrix(labels, predictions, p=0.5):
     for _, spine in heatmap.spines.items():
         spine.set_visible(True)
 
-    plt.title(f"Confusion Matrix at {round(p, 3)}")
+    plt.title(f"Discriminator Threshold = {round(p, 3)}")
     plt.ylabel("Actual label")
     plt.xlabel("Predicted label")
 
@@ -181,7 +180,6 @@ def make_roc_curve(data, preds):
     plt.plot(fpr, tpr)
     plt.plot([0, 1], [0, 1], "k--")
     plt.axis([0, 1, 0, 1])
-    plt.title("ROC Curve")
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
 
@@ -192,7 +190,6 @@ def make_pr_curve(data, preds):
     plt.figure(figsize=(8, 8))
     disp = PrecisionRecallDisplay(precision=precision, recall=recall)
     disp.plot()
-    plt.title("Precision-Recall Curve")
     plt.xlabel("Recall")
     plt.ylabel("Precision")
 

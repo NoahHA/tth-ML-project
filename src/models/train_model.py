@@ -1,5 +1,8 @@
 import argparse
 import os
+import random
+
+os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibility
 
 import keras.backend as K
 import numpy as np
@@ -21,6 +24,17 @@ from src.visualization.visualize import make_training_curves, save_plot
 from tensorflow import keras
 
 config = yaml.safe_load(open("src/config.yaml"))
+
+
+def reset_random_seeds():
+    """Makes the experiment reproducible"""
+    os.environ["PYTHONHASHSEED"] = str(1)
+    tf.random.set_seed(1)
+    np.random.seed(1)
+    random.seed(1)
+
+
+reset_random_seeds()
 
 
 class MonteCarloDropout(Dropout):
@@ -181,6 +195,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a neural net")
+
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
     parser.add_argument(
         "--model_name",
@@ -202,7 +217,7 @@ if __name__ == "__main__":
         "--save",
         action="store_true",
         default=False,
-        help="save model to models folder and save create training curves",
+        help="Save model to models folder and save create training curves",
     )
 
     args = parser.parse_args()
