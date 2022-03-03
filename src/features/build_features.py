@@ -115,6 +115,8 @@ def subtract_leading_jet_phi(df):
     leading_jet_phis = df[:, 0, phi_index]
     df[:, :, phi_index] = np.abs(df[:, :, phi_index] - leading_jet_phis[:, None])
 
+    return df
+
 
 def preprocess_data(all_data):
     max_jets = all_data["X_train"]["ncleanedJet"].max()
@@ -138,7 +140,7 @@ def preprocess_data(all_data):
 
     # subtracts leading phi from object data
     all_data["object_X_train"] = subtract_leading_jet_phi(all_data["object_X_train"])
-    all_data["object_X_train"] = subtract_leading_jet_phi(all_data["object_X_test"])
+    all_data["object_X_test"] = subtract_leading_jet_phi(all_data["object_X_test"])
 
     # scales object data
     nz = np.any(all_data["object_X_train"], -1)

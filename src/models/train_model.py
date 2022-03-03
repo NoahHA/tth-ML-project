@@ -21,6 +21,7 @@ from keras.models import Sequential
 from sklearn.utils import class_weight
 from src.features.build_features import load_preprocessed_data
 from src.visualization.visualize import make_training_curves, save_plot
+from src.models.significance_loss import significance_full
 from tensorflow import keras
 
 config = yaml.safe_load(open("src/config.yaml"))
@@ -69,9 +70,13 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
     NUM_LAYERS = config["RNN_params"]["num_merged_layers"]
     DROPOUT = config["RNN_params"]["dropout"]
     REDROPOUT = config["RNN_params"]["redropout"]
+
     OPTIMIZER = keras.optimizers.Adam(
         learning_rate=config["RNN_params"]["lr"],
         clipnorm=config["RNN_params"]["clipnorm"],
+    )
+    INITIALIZER = tf.keras.initializers.VarianceScaling(
+        scale=0.1, mode="fan_in", distribution="uniform"
     )
     METRICS = [
         keras.metrics.BinaryAccuracy(name="accuracy"),
@@ -91,6 +96,7 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
             ),
             return_sequences=True,
             recurrent_dropout=REDROPOUT,
+            kernel_initializer=INITIALIZER,
         )
     )
     RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
@@ -98,21 +104,27 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
         LSTM(
             units=config["RNN_params"]["lstm_units"],
             recurrent_dropout=REDROPOUT,
+            kernel_initializer=INITIALIZER,
         )
     )
     RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
     RNN_model.add(
-        Dense(units=config["RNN_params"]["output_units"], activation=ACTIVATION)
+        Dense(
+            units=config["RNN_params"]["output_units"],
+            activation=ACTIVATION,
+        )
     )
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])
 
     for _ in range(NUM_LAYERS):
         merged_model = BatchNormalization(epsilon=0.01)(merged_model)
+
         if use_mc_dropout:
             merged_model = MonteCarloDropout(DROPOUT)(merged_model)
         else:
             merged_model = Dropout(DROPOUT)(merged_model)
+
         merged_model = Dense(
             units=config["RNN_params"]["merged_units"], activation=ACTIVATION
         )(merged_model)
