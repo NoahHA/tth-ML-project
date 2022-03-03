@@ -109,9 +109,17 @@ def split_data(df: pd.DataFrame):
     return all_data
 
 
+def subtract_leading_jet_phi(df):
+    """Subtracts the leading  jet phi from all other jets"""
+    phi_index = object_cols.index("cleanedJet_phi")
+    leading_jet_phis = df[:, 0, phi_index]
+    df[:, :, phi_index] = np.abs(df[:, :, phi_index] - leading_jet_phis[:, None])
+
+
 def preprocess_data(all_data):
     max_jets = all_data["X_train"]["ncleanedJet"].max()
 
+    # scales event level data
     scaler = StandardScaler()
     all_data["event_X_train"][event_cols] = scaler.fit_transform(
         all_data["event_X_train"][event_cols].values
@@ -120,11 +128,19 @@ def preprocess_data(all_data):
         all_data["event_X_test"][event_cols].values
     )
 
+    # pads object level data
     all_data["object_X_train"] = pad_data(all_data["object_X_train"])
     all_data["object_X_test"] = pad_data(all_data["object_X_test"])
+
+    # expands object level data
     all_data["object_X_train"] = expand_lists(all_data["object_X_train"], max_jets)
     all_data["object_X_test"] = expand_lists(all_data["object_X_test"], max_jets)
 
+    # subtracts leading phi from object data
+    all_data["object_X_train"] = subtract_leading_jet_phi(all_data["object_X_train"])
+    all_data["object_X_train"] = subtract_leading_jet_phi(all_data["object_X_test"])
+
+    # scales object data
     nz = np.any(all_data["object_X_train"], -1)
     all_data["object_X_train"][nz] = scaler.fit_transform(
         all_data["object_X_train"][nz]

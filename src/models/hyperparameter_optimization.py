@@ -103,6 +103,7 @@ def create_model(params: dict):
             )
         )
         RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
+    
     RNN_model.add(Dense(units=params["output_units"], activation=ACTIVATION))
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])

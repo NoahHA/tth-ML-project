@@ -104,7 +104,6 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
     RNN_model.add(
         Dense(units=config["RNN_params"]["output_units"], activation=ACTIVATION)
     )
-    RNN_model.add(BatchNormalization(epsilon=0.01))
 
     merged_model = Concatenate()([DNN_model, RNN_model.output])
 
