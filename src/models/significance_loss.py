@@ -1,7 +1,5 @@
+import tensorflow as tf
 from keras import backend as K
-from keras import regularizers
-from keras.layers import Dense, Dropout
-from keras.models import Sequential
 
 
 def significanceLoss(expectedSignal, expectedBkgd):
@@ -66,6 +64,7 @@ def significanceLossInvertSqrt(expectedSignal, expectedBkgd):
 
     def sigLossInvert(y_true, y_pred):
         # Continuous version:
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)
@@ -81,19 +80,16 @@ def significanceLossInvertSqrt(expectedSignal, expectedBkgd):
 
 
 def significanceFull(expectedSignal, expectedBkgd):
-    """Define a loss function that calculates the significance based on fixed
-    expected signal and expected background yields for a given batch size"""
-
     def significance(y_true, y_pred):
-        # Discrete version
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)
 
-        s = signalWeight * K.sum(K.round(y_pred) * y_true)
-        b = bkgdWeight * K.sum(K.round(y_pred) * (1 - y_true))
+        s = signalWeight * K.sum(y_pred * y_true)
+        b = bkgdWeight * K.sum(y_pred * (1 - y_true))
 
-        return s / K.sqrt(s + b + K.epsilon())  # Add the epsilon to avoid dividing by 0
+        return s / K.sqrt(s + b + K.epsilon())
 
     return significance
 

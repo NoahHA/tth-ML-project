@@ -1,0 +1,3 @@
+#!c:\users\noaja\downloads\msci_project\tth-ml-project\venv\scripts\python.exe
+from numba.pycc import main
+main()

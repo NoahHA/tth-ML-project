@@ -6,6 +6,7 @@ os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibi
 
 import keras.backend as K
 import numpy as np
+import src.models.significance_loss as sig_loss
 import tensorflow as tf
 import yaml
 from keras import Input, Model
@@ -21,7 +22,6 @@ from keras.models import Sequential
 from sklearn.utils import class_weight
 from src.features.build_features import load_preprocessed_data
 from src.visualization.visualize import make_training_curves, save_plot
-from src.models.significance_loss import significance_full
 from tensorflow import keras
 
 config = yaml.safe_load(open("src/config.yaml"))
@@ -75,9 +75,6 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
         learning_rate=config["RNN_params"]["lr"],
         clipnorm=config["RNN_params"]["clipnorm"],
     )
-    INITIALIZER = tf.keras.initializers.VarianceScaling(
-        scale=0.1, mode="fan_in", distribution="uniform"
-    )
     METRICS = [
         keras.metrics.BinaryAccuracy(name="accuracy"),
         keras.metrics.AUC(name="AUC"),
@@ -96,7 +93,6 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
             ),
             return_sequences=True,
             recurrent_dropout=REDROPOUT,
-            kernel_initializer=INITIALIZER,
         )
     )
     RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
@@ -104,7 +100,6 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
         LSTM(
             units=config["RNN_params"]["lstm_units"],
             recurrent_dropout=REDROPOUT,
-            kernel_initializer=INITIALIZER,
         )
     )
     RNN_model.add(LayerNormalization(axis=-1, center=True, scale=True))
@@ -132,7 +127,22 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
     merged_model = Dense(1, activation="sigmoid")(merged_model)
 
     model = Model(inputs=[DNN_model, RNN_model.input], outputs=merged_model)
-    model.compile(optimizer=OPTIMIZER, loss="binary_crossentropy", metrics=METRICS)
+
+    signal_frac = sum(data["y_train"] == 1) / sum(data["y_train"] == 0)
+    expected_signal = int(signal_frac * config["RNN_params"]["batch_size"])
+    expected_bg = int((1 / signal_frac) * config["RNN_params"]["batch_size"])
+
+    # model.compile(
+    #     optimizer=OPTIMIZER,
+    #     loss=sig_loss.significanceLossInvertSqrt(expected_signal, expected_bg),
+    #     metrics=METRICS,
+    # )
+
+    model.compile(
+        optimizer=OPTIMIZER,
+        loss=sig_loss.significanceLossInvertSqrt(expected_signal, expected_bg),
+        metrics=METRICS,
+    )
 
     return model
 
