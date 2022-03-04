@@ -1,3 +1,5 @@
+# TODO maybe write code to automatically create a latex document or something based on these plots
+
 import argparse
 import os
 import pickle
@@ -11,7 +13,6 @@ import yaml
 from sklearn.metrics import (
     PrecisionRecallDisplay,
     confusion_matrix,
-    f1_score,
     precision_recall_curve,
     roc_auc_score,
     roc_curve,
@@ -19,10 +20,8 @@ from sklearn.metrics import (
 from src.features.build_features import load_preprocessed_data
 from tensorflow import keras
 
-config = yaml.safe_load(open("src/config.yaml"))
+config = yaml.safe_load(open("src/config-defaults.yaml"))
 plt.style.use(config["visuals"]["style"])
-
-# maybe write code to automatically create a latex document or something based on these plots
 
 
 def make_training_curves(history):
@@ -107,7 +106,7 @@ def make_discriminator(data, preds, model_name):
         bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
 
     n_bins = 50
-
+    use_log = True
     _, axs = plt.subplots(2, figsize=(14, 8))
 
     axs[0].yaxis.set_ticks([])
@@ -120,6 +119,7 @@ def make_discriminator(data, preds, model_name):
         range=(0, 1),
         label="ttH (signal)",
         histtype="step",
+        log=use_log,
     )
     axs[0].hist(
         bg,
@@ -128,6 +128,7 @@ def make_discriminator(data, preds, model_name):
         range=(0, 1),
         label=r"$t\bar{t}$ (background)",
         histtype="step",
+        log=use_log,
     )
     axs[1].hist(
         sg,
@@ -136,6 +137,7 @@ def make_discriminator(data, preds, model_name):
         range=(0, 1),
         label="ttH (signal)",
         histtype="step",
+        log=use_log,
     )
     axs[1].hist(
         bg,
@@ -144,6 +146,7 @@ def make_discriminator(data, preds, model_name):
         range=(0, 1),
         label=r"$t\bar{t}$ (background)",
         histtype="step",
+        log=use_log,
     )
 
     axs[0].set_title("Normalised")
@@ -325,9 +328,7 @@ def main(args):
         model.load_model(model_path)  # load data
         preds = model.predict(xgb.DMatrix(data["event_X_test"].values))
     else:
-        model = keras.models.load_model(
-            model_path, custom_objects={"f1_score": f1_score}
-        )
+        model = keras.models.load_model(model_path, compile=False)
         preds = model.predict([data["event_X_test"], data["object_X_test"]])
 
     fig_path = config["paths"]["fig_path"]

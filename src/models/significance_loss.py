@@ -8,6 +8,7 @@ def significanceLoss(expectedSignal, expectedBkgd):
 
     def sigLoss(y_true, y_pred):
         # Continuous version:
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)
@@ -28,6 +29,7 @@ def significanceLossInvert(expectedSignal, expectedBkgd):
 
     def sigLossInvert(y_true, y_pred):
         # Continuous version:
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)
@@ -46,6 +48,7 @@ def significanceLoss2Invert(expectedSignal, expectedBkgd):
 
     def sigLoss2Invert(y_true, y_pred):
         # Continuous version:
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)
@@ -100,6 +103,7 @@ def asimovSignificanceLoss(expectedSignal, expectedBkgd, systematic):
 
     def asimovSigLoss(y_true, y_pred):
         # Continuous version:
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)
@@ -131,6 +135,7 @@ def asimovSignificanceLossInvert(expectedSignal, expectedBkgd, systematic):
 
     def asimovSigLossInvert(y_true, y_pred):
         # Continuous version:
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)
@@ -154,7 +159,7 @@ def asimovSignificanceLossInvert(expectedSignal, expectedBkgd, systematic):
                 * K.log(1 + sigB * sigB * s / (b * (b + sigB * sigB) + K.epsilon()))
                 / (sigB * sigB + K.epsilon())
             )
-        )  # Add the epsilon to avoid dividing by 0
+        )
 
     return asimovSigLossInvert
 
@@ -165,6 +170,7 @@ def asimovSignificanceFull(expectedSignal, expectedBkgd, systematic):
 
     def asimovSignificance(y_true, y_pred):
         # Continuous version:
+        y_true = tf.cast(y_true, tf.float32)
 
         signalWeight = expectedSignal / K.sum(y_true)
         bkgdWeight = expectedBkgd / K.sum(1 - y_true)

@@ -8,6 +8,7 @@ import keras.backend as K
 import numpy as np
 import src.models.significance_loss as sig_loss
 import tensorflow as tf
+import wandb
 import yaml
 from keras import Input, Model
 from keras.layers import (
@@ -24,7 +25,7 @@ from src.features.build_features import load_preprocessed_data
 from src.visualization.visualize import make_training_curves, save_plot
 from tensorflow import keras
 
-config = yaml.safe_load(open("src/config.yaml"))
+config = yaml.safe_load(open("src/config-defaults.yaml"))
 
 
 def reset_random_seeds():
@@ -131,16 +132,13 @@ def make_RNN_model(data: dict, use_mc_dropout: bool = False):
     signal_frac = sum(data["y_train"] == 1) / sum(data["y_train"] == 0)
     expected_signal = int(signal_frac * config["RNN_params"]["batch_size"])
     expected_bg = int((1 / signal_frac) * config["RNN_params"]["batch_size"])
-
-    # model.compile(
-    #     optimizer=OPTIMIZER,
-    #     loss=sig_loss.significanceLossInvertSqrt(expected_signal, expected_bg),
-    #     metrics=METRICS,
-    # )
+    systemic_uncertainty = config['RNN_params']['systematic_uncertainty']
 
     model.compile(
         optimizer=OPTIMIZER,
-        loss=sig_loss.significanceLossInvertSqrt(expected_signal, expected_bg),
+        loss=sig_loss.asimovSignificanceLossInvert(
+            expected_signal, expected_bg, systemic_uncertainty
+        ),
         metrics=METRICS,
     )
 
@@ -180,7 +178,11 @@ def train_RNN(epochs: int, model_filepath: str, data: dict, model, save_model):
         save_freq="epoch",
     )
 
-    callbacks = [early_stopping]
+    wandbcallback = wandb.keras.WandbCallback(
+        validation_data=([data["event_X_test"], data["object_X_test"]], data["y_test"]),
+    )
+
+    callbacks = [early_stopping, wandbcallback]
     if save_model:
         callbacks.append(checkpoint)
 
@@ -200,15 +202,26 @@ def train_RNN(epochs: int, model_filepath: str, data: dict, model, save_model):
 
 
 def main(args):
+
+    wandb.init(project="tth-ml", entity="nha")
+
     EPOCHS = args.epochs
     SAVE_MODEL = args.save
     MC_DROPOUT = args.mc_dropout
     MODEL_NAME = args.model_name
     MODEL_FILEPATH = os.path.join("models", MODEL_NAME)
-    data = load_preprocessed_data(args.all_data)
+    DATA = load_preprocessed_data(args.all_data)
 
-    model = make_RNN_model(data, MC_DROPOUT)
-    history = train_RNN(EPOCHS, MODEL_FILEPATH, data, model, SAVE_MODEL)
+    wandb.config.epochs = EPOCHS
+    wandb.config.mc_dropout = MC_DROPOUT
+    wandb.config.all_data = args.all_data
+
+    model = make_RNN_model(DATA, MC_DROPOUT)
+    history = train_RNN(EPOCHS, MODEL_FILEPATH, DATA, model, SAVE_MODEL)
+    
+    for key, value in config['RNN_params'].items():
+        wandb.config[key] = value
+    
     if SAVE_MODEL:
         make_training_curves(history)
         save_plot(MODEL_NAME, "training_curves")

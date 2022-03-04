@@ -9,6 +9,7 @@ RNN_params:
   merged_units: 300
   output_units: 179
   batch_size: 4096
+  systematic_uncertainty: 0.05
   monitor: val_loss
   mode: auto
 
