@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 
-config = yaml.safe_load(open("src/config-defaults.yaml"))
+config = yaml.safe_load(open("src/config.yaml"))
 
 event_cols = config["data"]["event_cols"]
 object_cols = config["data"]["object_cols"]

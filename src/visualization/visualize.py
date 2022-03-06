@@ -20,7 +20,7 @@ from sklearn.metrics import (
 from src.features.build_features import load_preprocessed_data
 from tensorflow import keras
 
-config = yaml.safe_load(open("src/config-defaults.yaml"))
+config = yaml.safe_load(open("src/config.yaml"))
 plt.style.use(config["visuals"]["style"])
 
 
@@ -347,7 +347,9 @@ def main(args):
     save_plot(model_name, "roc_curve")
     make_pr_curve(data, preds)
     save_plot(model_name, "pr_curve")
-    make_shap_plots(model_name, model, data)
+    
+    if args.make_shap:
+        make_shap_plots(model_name, model, data)
 
 
 if __name__ == "__main__":
@@ -355,6 +357,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_name",
         default="model_test.h5",
+        help="Name of model (ends in .h5 for keras models or .model for xgboost)",
+    )
+    parser.add_argument(
+        "--make_shap",
+        action="store_true",
+        default=False,
         help="Name of model (ends in .h5 for keras models or .model for xgboost)",
     )
     args = parser.parse_args()

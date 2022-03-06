@@ -1,7 +1,7 @@
 msci-project
 ==============================
 
-Using ML to detect tth signals from LHC data
+This is a project to detect invisible Higgs decays at the LHC through the ttH production mode. I've created a binary classifier to separate ttH events from ttbar events which are the main background. The model is a RNN taking in both event level and object level features. The data preprocessing is done through src/features/build_features.py, which saves all of the processed data in data/processed. To train a model run src/models/train_model.py. All of the configuration parameters for the model are stored in config.yaml and can be used to configure specific hyperparameters without having to go through the code.
 
 Project Organization
 ------------
@@ -43,7 +43,6 @@ Project Organization
     │       └── visualize.py
     │
     └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
-
 
 --------
 
