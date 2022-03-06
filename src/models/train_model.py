@@ -80,6 +80,11 @@ def asimov_loss(y_train):
         expected_signal, expected_bg, systemic_uncertainty
     )
 
+# TODO: add command line arg for model type with specific options
+# TODO: add classes for multiclass RNN and binary xgboost
+# TODO: save loss function and model class to wandb
+# TODO: write summary at the top of all main files
+
 
 def main(args):
     epochs = args.epochs
@@ -123,7 +128,14 @@ def main(args):
         model.use_wandb(data)
 
     reset_random_seeds()
-    history = model.train(epochs, data, class_weights)
+    history = model.train(
+        epochs=epochs,
+        input_data=[data["event_X_train"], data["object_X_train"]],
+        validation_data=[data["event_X_test"], data["object_X_test"]],
+        y_train=data["y_train"],
+        y_test=data["y_test"],
+        class_weights=class_weights,
+    )
 
     if save_model:
         make_training_curves(history)
