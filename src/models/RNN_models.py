@@ -2,6 +2,7 @@ import os
 
 os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibility
 
+import numpy as np
 import tensorflow as tf
 import wandb
 from keras import Input, Model
@@ -13,7 +14,6 @@ from keras.layers import (
     LayerNormalization,
 )
 from keras.models import Sequential
-from src.models import train_model
 from tensorflow import keras
 
 
@@ -34,7 +34,6 @@ class NN_model:
         self.metrics = [
             keras.metrics.BinaryAccuracy(name="accuracy"),
             keras.metrics.AUC(name="AUC"),
-            train_model.f1_score,
         ]
 
     def save(self, model_filepath):
@@ -50,18 +49,24 @@ class NN_model:
         )
         self.callbacks.add(checkpoint)
 
-    def use_wandb(self, data):
-        wandbcallback = wandb.keras.WandbCallback(
-            validation_data=(
-                [data["event_X_test"], data["object_X_test"]],
-                data["y_test"],
-            ),
-        )
+    def use_wandb(self):
+        wandbcallback = wandb.keras.WandbCallback()
         self.callbacks.add(wandbcallback)
 
-    def train(
-        self, epochs, input_data, validation_data, y_train, y_test, class_weights
-    ):
+    def stack_inputs(self, X_train):
+        event_X = X_train[0]
+        object_X = X_train[1]
+        object_shape = object_X.shape
+
+        flat_object_X = np.reshape(
+            object_X, (object_shape[0], object_shape[1] * object_shape[2])
+        )
+
+        sklearn_X = np.hstack((flat_object_X, event_X))
+
+        return sklearn_X
+
+    def train(self, epochs, X_train, y_train, class_weights):
         # stops training early if score doesn't improve
         early_stopping = tf.keras.callbacks.EarlyStopping(
             monitor=self.monitor,
@@ -71,15 +76,15 @@ class NN_model:
             restore_best_weights=True,
         )
         self.callbacks.add(early_stopping)
-
+        
         history = self.model.fit(
-            input_data,
+            X_train,
             y_train,
             batch_size=self.batch_size,
-            epochs=epochs,
             class_weight=class_weights,
+            epochs=epochs,
             callbacks=list(self.callbacks),
-            validation_data=(validation_data, y_test),
+            validation_split=0.2,
             shuffle=True,
             verbose=1,
         )

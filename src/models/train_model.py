@@ -13,6 +13,11 @@ where:
 -h: show help message
 """
 
+import warnings
+from tensorflow import get_logger
+get_logger().setLevel('ERROR')
+warnings.filterwarnings("ignore")
+
 import argparse
 import os
 import random
@@ -21,15 +26,14 @@ os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibi
 
 import keras.backend as K
 import numpy as np
-import src.models.RNN_model as RNN_model
-import src.models.significance_loss as sig_loss
 import tensorflow as tf
 import wandb
 import yaml
 from keras.layers import Dropout
 from sklearn.utils import class_weight
-from src.features.build_features import load_preprocessed_data
-from src.visualization.visualize import make_training_curves, save_plot
+from src.features import build_features
+from src.models import RNN_models, significance_loss
+from src.visualization import visualize
 
 config = yaml.safe_load(open("src/config.yaml"))
 
@@ -76,14 +80,17 @@ def asimov_loss(y_train):
     expected_bg = int((1 / signal_frac) * config["RNN_params"]["batch_size"])
     systemic_uncertainty = config["RNN_params"]["systemic_uncertainty"]
 
-    return sig_loss.asimovSignificanceLossInvert(
+    return significance_loss.asimovSignificanceLossInvert(
         expected_signal, expected_bg, systemic_uncertainty
     )
 
+
 # TODO: add command line arg for model type with specific options
-# TODO: add classes for multiclass RNN and binary xgboost
+# TODO: add classes for multiclass RNN
 # TODO: save loss function and model class to wandb
 # TODO: write summary at the top of all main files
+# TODO: change visualize.py to use mc dropout and plot the mean values
+# for e.g. significance with sigmas around it
 
 
 def main(args):
@@ -93,8 +100,9 @@ def main(args):
     dropout_type = MonteCarloDropout if mc_dropout else Dropout
     model_name = args.model_name
     model_filepath = os.path.join("models", model_name)
-    data = load_preprocessed_data(args.all_data)
+    data = build_features.load_preprocessed_data(args.all_data)
     class_weights = calculate_class_weights(data["y_train"])
+
     if args.asimov_loss:
         loss = asimov_loss(data["y_train"])
     else:
@@ -103,7 +111,7 @@ def main(args):
     # makes sure the experiment is reproducible
     reset_random_seeds()
 
-    model = RNN_model.merged_model(
+    model = RNN_models.merged_model(
         dropout_type=dropout_type,
         loss=loss,
         event_shape=data["event_X_train"].shape[1:],
@@ -125,21 +133,19 @@ def main(args):
         for key, value in config["RNN_params"].items():
             wandb.config[key] = value
 
-        model.use_wandb(data)
+        model.use_wandb()
 
     reset_random_seeds()
-    history = model.train(
+    scores = model.train(
         epochs=epochs,
-        input_data=[data["event_X_train"], data["object_X_train"]],
-        validation_data=[data["event_X_test"], data["object_X_test"]],
+        X_train=[data["event_X_train"], data["object_X_train"]],
         y_train=data["y_train"],
-        y_test=data["y_test"],
         class_weights=class_weights,
     )
 
     if save_model:
-        make_training_curves(history)
-        save_plot(model_name, "training_curves")
+        visualize.make_training_curves(scores)
+        visualize.save_plot(model_name, "training_curves")
 
 
 if __name__ == "__main__":

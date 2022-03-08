@@ -85,7 +85,7 @@ def expand_lists(df, max_jets):
 
 
 def split_data(df: pd.DataFrame):
-    # splits data into training and validation
+    """splits data into training and validation"""
     X, y = df.drop("signal", axis=1), df["signal"]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, stratify=y, random_state=1
@@ -129,6 +129,10 @@ def preprocess_data(all_data):
     all_data["event_X_test"][event_cols] = scaler.transform(
         all_data["event_X_test"][event_cols].values
     )
+
+    # unskews data
+    all_data["event_X_train"] = unskew_data(all_data["event_X_train"])
+    all_data["event_X_test"] = unskew_data(all_data["event_X_test"])
 
     # pads object level data
     all_data["object_X_train"] = pad_data(all_data["object_X_train"])

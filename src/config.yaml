@@ -13,6 +13,17 @@ RNN_params:
   monitor: val_loss
   mode: auto
 
+XGBoost_params:
+  lr: 0.15, 
+  max_depth: 10,
+  alpha: 5,
+  colsample_bytree: 0.7,
+  reg_lambda: 0.23,
+  min_child_weight: 4,
+  subsample: 1,
+  scale_pos_weight: scale_factor
+  early_stopping_rounds: 20
+
 visuals:
   style: 
     - 'science'
@@ -63,4 +74,3 @@ data:
     - ncleanedJet
     - BiasedDPhi
     - signal
-    
