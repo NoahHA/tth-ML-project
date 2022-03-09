@@ -14,8 +14,10 @@ where:
 """
 
 import warnings
+
 from tensorflow import get_logger
-get_logger().setLevel('ERROR')
+
+get_logger().setLevel("ERROR")
 warnings.filterwarnings("ignore")
 
 import argparse
@@ -136,11 +138,13 @@ def main(args):
         model.use_wandb()
 
     reset_random_seeds()
-    scores = model.train(
+
+    scores = model.cross_validate(
         epochs=epochs,
-        X_train=[data["event_X_train"], data["object_X_train"]],
-        y_train=data["y_train"],
+        X=[data["event_X_train"], data["object_X_train"]],
+        y=data["y_train"],
         class_weights=class_weights,
+        cv=3,
     )
 
     if save_model:

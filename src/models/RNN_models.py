@@ -2,7 +2,6 @@ import os
 
 os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibility
 
-import numpy as np
 import tensorflow as tf
 import wandb
 from keras import Input, Model
@@ -14,6 +13,8 @@ from keras.layers import (
     LayerNormalization,
 )
 from keras.models import Sequential
+from sklearn.model_selection import KFold
+from src.features.build_features import scale_event_data, scale_object_data
 from tensorflow import keras
 
 
@@ -35,6 +36,11 @@ class NN_model:
             keras.metrics.BinaryAccuracy(name="accuracy"),
             keras.metrics.AUC(name="AUC"),
         ]
+        
+        if self.loss == "binary_crossentropy":
+            self.batch_size = self.cross_entropy_batch_size
+        else:
+            self.batch_size = self.asimov_batch_size
 
     def save(self, model_filepath):
         # saves the network at regular intervals so you can pick the best version
@@ -53,20 +59,7 @@ class NN_model:
         wandbcallback = wandb.keras.WandbCallback()
         self.callbacks.add(wandbcallback)
 
-    def stack_inputs(self, X_train):
-        event_X = X_train[0]
-        object_X = X_train[1]
-        object_shape = object_X.shape
-
-        flat_object_X = np.reshape(
-            object_X, (object_shape[0], object_shape[1] * object_shape[2])
-        )
-
-        sklearn_X = np.hstack((flat_object_X, event_X))
-
-        return sklearn_X
-
-    def train(self, epochs, X_train, y_train, class_weights):
+    def train(self, epochs, X_train, X_test, y_train, y_test, class_weights):
         # stops training early if score doesn't improve
         early_stopping = tf.keras.callbacks.EarlyStopping(
             monitor=self.monitor,
@@ -76,7 +69,7 @@ class NN_model:
             restore_best_weights=True,
         )
         self.callbacks.add(early_stopping)
-        
+
         history = self.model.fit(
             X_train,
             y_train,
@@ -84,7 +77,7 @@ class NN_model:
             class_weight=class_weights,
             epochs=epochs,
             callbacks=list(self.callbacks),
-            validation_split=0.2,
+            validation_data=(X_test, y_test),
             shuffle=True,
             verbose=1,
         )
@@ -144,6 +137,35 @@ class merged_model(NN_model):
             metrics=self.metrics,
         )
 
+    def cross_validate(self, epochs, X, y, class_weights, cv=5):
+
+        histories = []
+        kfold = KFold(n_splits=cv, shuffle=False)
+
+        for train_idx, test_idx in kfold.split(X[0]):
+            
+            # split into train and test
+            event_X_train, event_X_test = (X[0].iloc[train_idx], X[0].iloc[test_idx])
+            object_X_train, object_X_test = (X[1][train_idx], X[1][test_idx])
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+            # scale the data
+            event_X_train, event_X_test = scale_event_data(event_X_train, event_X_test)
+            object_X_train, object_X_test = scale_object_data(
+                object_X_train, object_X_test
+            )
+
+            X_train = [event_X_train, object_X_train]
+            X_test = [event_X_test, object_X_test]
+
+            # train model
+            history = self.train(
+                epochs, X_train, X_test, y_train, y_test, class_weights
+            )
+            histories.append(history)
+
+        return histories
+
 
 class RNN_model(NN_model):
     def __init__(self, dropout_type, loss, object_shape, **kwargs):
@@ -181,3 +203,24 @@ class RNN_model(NN_model):
             loss=self.loss,
             metrics=self.metrics,
         )
+
+    def cross_validate(self, epochs, X, y, class_weights, cv=5):
+
+        histories = []
+        kfold = KFold(n_splits=cv, shuffle=False)
+
+        for train_idx, test_idx in kfold.split(X):
+            # split into train and test
+            X_train, X_test = (X[train_idx], X[test_idx])
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+            # scale the data
+            X_train, X_test = scale_object_data(X_train, X_test)
+
+            # train model
+            history = self.train(
+                epochs, X_train, X_test, y_train, y_test, class_weights
+            )
+            histories.append(history)
+
+        return histories

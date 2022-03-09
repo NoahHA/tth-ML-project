@@ -8,7 +8,8 @@ RNN_params:
   lstm_units: 140
   merged_units: 300
   output_units: 179
-  batch_size: 4096
+  asimov_batch_size: 4096
+  cross_entropy_batch_size: 128
   systematic_uncertainty: 0.05
   monitor: val_loss
   mode: auto

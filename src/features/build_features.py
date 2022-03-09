@@ -1,3 +1,17 @@
+"""Script to preprocess the raw datasets. Returns a dicitonary containing:
+    "event_X_train": DataFrame of event level variables for training
+    "event_X_test": DataFrame of event level variables for testing
+    "object_X_train": Numpy array of object level variables for training
+    "object_X_test": Numpy array of object level variables for testing
+    "y_train": Series of y labels for training
+    "y_testing": Series of y labels for testing
+    
+    The dictionary is saved in data/processed as a .pkl file. Data is not scaled
+    as this must be done within the cross-validation loop to prevent data leakage.
+
+    Usage: python build_features.py --all_data
+"""
+
 import argparse
 import os
 import pickle
@@ -10,6 +24,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 
+pd.options.mode.chained_assignment = None
 config = yaml.safe_load(open("src/config.yaml"))
 
 event_cols = config["data"]["event_cols"]
@@ -121,15 +136,6 @@ def subtract_leading_jet_phi(df):
 def preprocess_data(all_data):
     max_jets = all_data["X_train"]["ncleanedJet"].max()
 
-    # scales event level data
-    scaler = StandardScaler()
-    all_data["event_X_train"][event_cols] = scaler.fit_transform(
-        all_data["event_X_train"][event_cols].values
-    )
-    all_data["event_X_test"][event_cols] = scaler.transform(
-        all_data["event_X_test"][event_cols].values
-    )
-
     # unskews data
     all_data["event_X_train"] = unskew_data(all_data["event_X_train"])
     all_data["event_X_test"] = unskew_data(all_data["event_X_test"])
@@ -145,14 +151,6 @@ def preprocess_data(all_data):
     # subtracts leading phi from object data
     all_data["object_X_train"] = subtract_leading_jet_phi(all_data["object_X_train"])
     all_data["object_X_test"] = subtract_leading_jet_phi(all_data["object_X_test"])
-
-    # scales object data
-    nz = np.any(all_data["object_X_train"], -1)
-    all_data["object_X_train"][nz] = scaler.fit_transform(
-        all_data["object_X_train"][nz]
-    )
-    nz = np.any(all_data["object_X_test"], -1)
-    all_data["object_X_test"][nz] = scaler.transform(all_data["object_X_test"][nz])
 
     return all_data
 
@@ -189,6 +187,29 @@ def load_preprocessed_data(use_all_data=True):
         combined_data = pickle.load(handle)
 
     return combined_data
+
+
+def scale_event_data(event_X_train, event_X_test):
+    """scales event level data"""
+    scaler = StandardScaler()
+    event_X_train.loc[:, event_X_train.columns] = scaler.fit_transform(
+        event_X_train.loc[:, event_X_train.columns].values
+    )
+    event_X_test.loc[:, event_X_train.columns] = scaler.transform(
+        event_X_test.loc[:, event_X_train.columns].values
+    )
+    return (event_X_train, event_X_test)
+
+
+def scale_object_data(object_X_train, object_X_test):
+    # scales object data
+    scaler = StandardScaler()
+    nz = np.any(object_X_train, -1)
+    object_X_train[nz] = scaler.fit_transform(object_X_train[nz])
+    nz = np.any(object_X_test, -1)
+    object_X_test[nz] = scaler.transform(object_X_test[nz])
+
+    return (object_X_train, object_X_test)
 
 
 def main(args):
