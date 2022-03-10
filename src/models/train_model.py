@@ -89,10 +89,37 @@ def asimov_loss(y_train):
 
 # TODO: add command line arg for model type with specific options
 # TODO: add classes for multiclass RNN
-# TODO: save loss function and model class to wandb
 # TODO: write summary at the top of all main files
 # TODO: change visualize.py to use mc dropout and plot the mean values
 # for e.g. significance with sigmas around it
+
+
+# TODO: Models I need:
+#       merged model asimov loss and mc dropout, 
+#       merged model asimov loss w/o mc dropout, 
+#       merged model cross-entropy loss and mc dropout, 
+#       merged model cross-entropy loss w/o mc dropout,
+#       RNN model cross-entropy loss and mc dropout,
+#       RNN model cross-entropy loss w/o mc dropout,
+#       RNN model asimov loss and mc dropout,
+#       RNN model asimov loss w/o mc dropout,
+#       FFN model asimov loss and mc dropout,
+#       FFN model asimov loss w/o mc dropout
+#       FFN model cross-entropy loss and mc dropout,
+#       FFN model cross-entropy loss w/o mc dropout,
+#       multiclass model cross-entropy loss and mc dropout,
+#       multiclass model cross-entropy loss w/o mc dropout,
+#       multiclass model asimov loss and mc dropout,
+#       multiclass model asimov loss w/o mc dropout,
+#       DONE: XGBoost with cross-entropy loss
+#       XGBoost with asimov loss
+
+
+# In results, can then compare:
+#       with and without mc dropout
+#       with and without asimov loss
+#       binary vs multiclass
+#       FFN vs RNN vs merged
 
 
 def main(args):
@@ -131,6 +158,8 @@ def main(args):
         wandb.config.epochs = epochs
         wandb.config.mc_dropout = mc_dropout
         wandb.config.all_data = args.all_data
+        wandb.config.asimov_loss = args.asimov_loss
+        wandb.config.model = type(model)
 
         for key, value in config["RNN_params"].items():
             wandb.config[key] = value

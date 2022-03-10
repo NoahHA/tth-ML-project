@@ -18,6 +18,20 @@ from src.features.build_features import scale_event_data, scale_object_data
 from tensorflow import keras
 
 
+def get_average_history(histories):
+    history = {}
+
+    for i in histories:
+        for k, v in i.items():
+            if k not in history:
+                history[k] = v
+            else:
+                history[k] += v
+
+    history = {k: v / len(histories) for k, v in history.items()}
+    return history
+
+
 class NN_model:
     def __init__(self, dropout_type, loss, **kwargs):
 
@@ -36,7 +50,7 @@ class NN_model:
             keras.metrics.BinaryAccuracy(name="accuracy"),
             keras.metrics.AUC(name="AUC"),
         ]
-        
+
         if self.loss == "binary_crossentropy":
             self.batch_size = self.cross_entropy_batch_size
         else:
@@ -69,6 +83,8 @@ class NN_model:
             restore_best_weights=True,
         )
         self.callbacks.add(early_stopping)
+
+        X_train, X_test = self.scale_data(X_train=X_train, X_test=X_test)
 
         history = self.model.fit(
             X_train,
@@ -109,7 +125,6 @@ class merged_model(NN_model):
                 recurrent_dropout=self.redropout,
             )
         )
-        self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
         self.model.add(
             Dense(
                 units=self.output_units,
@@ -137,23 +152,21 @@ class merged_model(NN_model):
             metrics=self.metrics,
         )
 
-    def cross_validate(self, epochs, X, y, class_weights, cv=5):
+    def scale_data(self, X_train: list, X_test):
+        X_train[0], X_test[0] = scale_event_data(X_train[0], X_test[0])
+        X_train[1], X_test[1] = scale_object_data(X_train[1], X_test[1])
+        return (X_train, X_test)
 
+    def cross_validate(self, epochs, X, y, class_weights, cv=1):
         histories = []
         kfold = KFold(n_splits=cv, shuffle=False)
 
         for train_idx, test_idx in kfold.split(X[0]):
-            
+
             # split into train and test
             event_X_train, event_X_test = (X[0].iloc[train_idx], X[0].iloc[test_idx])
             object_X_train, object_X_test = (X[1][train_idx], X[1][test_idx])
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
-            # scale the data
-            event_X_train, event_X_test = scale_event_data(event_X_train, event_X_test)
-            object_X_train, object_X_test = scale_object_data(
-                object_X_train, object_X_test
-            )
 
             X_train = [event_X_train, object_X_train]
             X_test = [event_X_test, object_X_test]
@@ -164,7 +177,8 @@ class merged_model(NN_model):
             )
             histories.append(history)
 
-        return histories
+        history = get_average_history(histories)
+        return history
 
 
 class RNN_model(NN_model):
@@ -204,6 +218,9 @@ class RNN_model(NN_model):
             metrics=self.metrics,
         )
 
+    def scale_data(self, X_train, X_test):
+        X_train, X_test = scale_event_data(X_train, X_test)
+
     def cross_validate(self, epochs, X, y, class_weights, cv=5):
 
         histories = []
@@ -223,4 +240,5 @@ class RNN_model(NN_model):
             )
             histories.append(history)
 
-        return histories
+        history = get_average_history(histories)
+        return history
