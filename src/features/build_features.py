@@ -15,6 +15,7 @@
 import argparse
 import os
 import pickle
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -25,7 +26,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 
 pd.options.mode.chained_assignment = None
-config = yaml.safe_load(open("src/config.yaml"))
+
+config = yaml.safe_load(open(os.path.join(Path(__file__).parent.parent, "config.yaml")))
 
 event_cols = config["data"]["event_cols"]
 object_cols = config["data"]["object_cols"]

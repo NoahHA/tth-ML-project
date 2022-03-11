@@ -1,0 +1,32 @@
+{
+    "os": "Windows-10-10.0.22000-SP0",
+    "python": "3.9.6",
+    "heartbeatAt": "2022-03-10T13:20:19.555278",
+    "startedAt": "2022-03-10T13:20:09.920518",
+    "docker": null,
+    "gpu": "NVIDIA GeForce GTX 1650",
+    "gpu_count": 1,
+    "cpu_count": 12,
+    "cuda": null,
+    "args": [
+        "--all_data",
+        "--save",
+        "--model_name",
+        "merged_ce_mc.h5",
+        "--epochs",
+        "20",
+        "--mc_dropout"
+    ],
+    "state": "running",
+    "program": "C:\\Users\\Noaja\\Downloads\\msci_project\\tth-ML-project\\src\\models\\train_model.py",
+    "codePath": "src\\models\\train_model.py",
+    "git": {
+        "remote": "https://github.com/NoahHA/tth-ML-project.git",
+        "commit": "7c6f3a620039cb291f21ad79fd48fb2a5cc32cda"
+    },
+    "email": "nhirstashuach@gmail.com",
+    "root": "C:/Users/Noaja/Downloads/msci_project/tth-ML-project",
+    "host": "LAPTOP-70VKOB37",
+    "username": "Noaja",
+    "executable": "C:\\Users\\Noaja\\Downloads\\msci_project\\tth-ML-project\\venv\\Scripts\\python.exe"
+}

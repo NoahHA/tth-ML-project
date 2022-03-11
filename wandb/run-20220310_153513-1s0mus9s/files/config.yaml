@@ -8,7 +8,7 @@ _wandb:
     is_jupyter_run: false
     is_kaggle_kernel: false
     python_version: 3.9.6
-    start_time: 1646913127
+    start_time: 1646926513
     t:
       1:
       - 2
@@ -40,7 +40,7 @@ asimov_batch_size:
   value: 4096
 asimov_loss:
   desc: null
-  value: false
+  value: true
 clipnorm:
   desc: null
   value: 0.001

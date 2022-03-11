@@ -23,6 +23,7 @@ warnings.filterwarnings("ignore")
 import argparse
 import os
 import random
+from pathlib import Path
 
 os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibility
 
@@ -32,12 +33,13 @@ import tensorflow as tf
 import wandb
 import yaml
 from keras.layers import Dropout
+from sklearn.model_selection import train_test_split
 from sklearn.utils import class_weight
 from src.features import build_features
 from src.models import RNN_models, significance_loss
 from src.visualization import visualize
 
-config = yaml.safe_load(open("src/config.yaml"))
+config = yaml.safe_load(open(os.path.join(Path(__file__).parent.parent, "config.yaml")))
 
 
 class MonteCarloDropout(Dropout):
@@ -78,12 +80,12 @@ def calculate_class_weights(y_train):
 
 def asimov_loss(y_train):
     signal_frac = sum(y_train == 1) / sum(y_train == 0)
-    expected_signal = int(signal_frac * config["RNN_params"]["batch_size"])
-    expected_bg = int((1 / signal_frac) * config["RNN_params"]["batch_size"])
-    systemic_uncertainty = config["RNN_params"]["systemic_uncertainty"]
+    expected_signal = int(signal_frac * config["RNN_params"]["asimov_batch_size"])
+    expected_bg = int((1 / signal_frac) * config["RNN_params"]["asimov_batch_size"])
+    systematic_uncertainty = config["RNN_params"]["systematic_uncertainty"]
 
     return significance_loss.asimovSignificanceLossInvert(
-        expected_signal, expected_bg, systemic_uncertainty
+        expected_signal, expected_bg, systematic_uncertainty
     )
 
 
@@ -95,23 +97,18 @@ def asimov_loss(y_train):
 
 
 # TODO: Models I need:
-#       merged model asimov loss and mc dropout, 
-#       merged model asimov loss w/o mc dropout, 
-#       merged model cross-entropy loss and mc dropout, 
-#       merged model cross-entropy loss w/o mc dropout,
 #       RNN model cross-entropy loss and mc dropout,
 #       RNN model cross-entropy loss w/o mc dropout,
 #       RNN model asimov loss and mc dropout,
 #       RNN model asimov loss w/o mc dropout,
 #       FFN model asimov loss and mc dropout,
-#       FFN model asimov loss w/o mc dropout
+#       FFN model asimov loss w/o mc dropout,
 #       FFN model cross-entropy loss and mc dropout,
 #       FFN model cross-entropy loss w/o mc dropout,
 #       multiclass model cross-entropy loss and mc dropout,
 #       multiclass model cross-entropy loss w/o mc dropout,
 #       multiclass model asimov loss and mc dropout,
 #       multiclass model asimov loss w/o mc dropout,
-#       DONE: XGBoost with cross-entropy loss
 #       XGBoost with asimov loss
 
 
@@ -168,12 +165,28 @@ def main(args):
 
     reset_random_seeds()
 
-    scores = model.cross_validate(
+    (
+        event_X_train,
+        event_X_validation,
+        object_X_train,
+        object_X_validation,
+        y_train,
+        y_validation,
+    ) = train_test_split(
+        data["event_X_train"],
+        data["object_X_train"],
+        data["y_train"],
+        stratify=data["y_train"],
+        random_state=1,
+    )
+
+    scores = model.train(
         epochs=epochs,
-        X=[data["event_X_train"], data["object_X_train"]],
-        y=data["y_train"],
+        X_train=[event_X_train, object_X_train],
+        X_test=[event_X_validation, object_X_validation],
+        y_train=y_train,
+        y_test=y_validation,
         class_weights=class_weights,
-        cv=3,
     )
 
     if save_model:

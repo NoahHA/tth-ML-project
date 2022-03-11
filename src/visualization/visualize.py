@@ -3,6 +3,7 @@
 import argparse
 import os
 import pickle
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +21,7 @@ from sklearn.metrics import (
 from src.features.build_features import load_preprocessed_data
 from tensorflow import keras
 
-config = yaml.safe_load(open("src/config.yaml"))
+config = yaml.safe_load(open(os.path.join(Path(__file__).parent.parent, "config.yaml")))
 plt.style.use(config["visuals"]["style"])
 
 
@@ -347,7 +348,7 @@ def main(args):
     save_plot(model_name, "roc_curve")
     make_pr_curve(data, preds)
     save_plot(model_name, "pr_curve")
-    
+
     if args.make_shap:
         make_shap_plots(model_name, model, data)
 

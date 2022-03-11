@@ -8,7 +8,7 @@ _wandb:
     is_jupyter_run: false
     is_kaggle_kernel: false
     python_version: 3.9.6
-    start_time: 1646913127
+    start_time: 1646918410
     t:
       1:
       - 2
@@ -61,7 +61,7 @@ lstm_units:
   value: 140
 mc_dropout:
   desc: null
-  value: false
+  value: true
 merged_units:
   desc: null
   value: 300

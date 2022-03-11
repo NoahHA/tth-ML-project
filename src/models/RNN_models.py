@@ -22,7 +22,7 @@ def get_average_history(histories):
     history = {}
 
     for i in histories:
-        for k, v in i.items():
+        for k, v in i.history.items():
             if k not in history:
                 history[k] = v
             else:
@@ -157,7 +157,7 @@ class merged_model(NN_model):
         X_train[1], X_test[1] = scale_object_data(X_train[1], X_test[1])
         return (X_train, X_test)
 
-    def cross_validate(self, epochs, X, y, class_weights, cv=1):
+    def cross_validate(self, epochs, X, y, class_weights, cv=3):
         histories = []
         kfold = KFold(n_splits=cv, shuffle=False)
 
@@ -242,3 +242,22 @@ class RNN_model(NN_model):
 
         history = get_average_history(histories)
         return history
+
+
+class FNN_model(NN_model):
+    def __init__(self, dropout_type, loss, event_shape, **kwargs):
+        super().__init__(dropout_type, loss, **kwargs)
+        self.event_shape = event_shape
+        self.make_model()
+
+    def make_model(self):
+        self.model = Sequential()
+
+        self.model.compile(
+            optimizer=self.optimizer,
+            loss=self.loss,
+            metrics=self.metrics,
+        )
+
+    def scale_data(self, X_train, X_test):
+        X_train, X_test = scale_event_data(X_train, X_test)
