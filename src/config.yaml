@@ -11,7 +11,7 @@ RNN_params:
   asimov_batch_size: 4096
   cross_entropy_batch_size: 128
   systematic_uncertainty: 0.05
-  monitor: val_loss
+  monitor: val_AUC
   mode: auto
 
 XGBoost_params:

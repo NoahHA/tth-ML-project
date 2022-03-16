@@ -94,10 +94,6 @@ def asimov_loss(y_train):
 #       RNN model cross-entropy loss w/o mc dropout,
 #       RNN model asimov loss and mc dropout,
 #       RNN model asimov loss w/o mc dropout,
-#       FFN model asimov loss and mc dropout,
-#       FFN model asimov loss w/o mc dropout,
-#       FFN model cross-entropy loss and mc dropout,
-#       FFN model cross-entropy loss w/o mc dropout,
 #       multiclass model cross-entropy loss and mc dropout,
 #       multiclass model cross-entropy loss w/o mc dropout,
 #       multiclass model asimov loss and mc dropout,
@@ -200,6 +196,7 @@ if __name__ == "__main__":
     parser.add_argument("--wandb", action="store_true", help="Use WandB")
     parser.add_argument(
         "--asimov_loss",
+        "-asimov",
         action="store_true",
         help="Use Asimov significance as the loss function",
     )
@@ -211,6 +208,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--mc_dropout",
+        "-mc",
         action="store_true",
         help="Add dropout during testing to calculate model uncertainty",
     )

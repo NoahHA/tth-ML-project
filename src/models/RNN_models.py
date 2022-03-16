@@ -5,13 +5,8 @@ os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibi
 import tensorflow as tf
 import wandb
 from keras import Input, Model
-from keras.layers import (
-    LSTM,
-    BatchNormalization,
-    Concatenate,
-    Dense,
-    LayerNormalization,
-)
+from keras.layers import (LSTM, BatchNormalization, Concatenate, Dense,
+                          LayerNormalization)
 from keras.models import Sequential
 from sklearn.model_selection import KFold
 from src.features.build_features import scale_event_data, scale_object_data
@@ -33,7 +28,9 @@ def get_average_history(histories):
 
 
 class NN_model:
-    def __init__(self, dropout_type, loss, event_shape=None, object_shape=None, **kwargs):
+    def __init__(
+        self, dropout_type, loss, event_shape=None, object_shape=None, **kwargs
+    ):
 
         self.dropout_type = dropout_type
         self.loss = loss
@@ -234,7 +231,22 @@ class FNN_model(NN_model):
         self.make_model()
 
     def make_model(self):
+        num_hidden_layers = 1
+
         self.model = Sequential()
+        self.model.add(Dense(units=self.event_shape[0], activation=self.activation))
+
+        for _ in range(num_hidden_layers):
+            self.model.add(BatchNormalization(epsilon=0.01))
+            self.model.add(self.dropout_type(self.dropout))
+            self.model.add(Dense(units=self.merged_units, activation=self.activation))
+
+        self.model.add(
+            Dense(
+                units=1,
+                activation="sigmoid",
+            )
+        )
 
         self.model.compile(
             optimizer=self.optimizer,
