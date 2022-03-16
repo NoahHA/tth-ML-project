@@ -33,10 +33,12 @@ def get_average_history(histories):
 
 
 class NN_model:
-    def __init__(self, dropout_type, loss, **kwargs):
+    def __init__(self, dropout_type, loss, event_shape=None, object_shape=None, **kwargs):
 
         self.dropout_type = dropout_type
         self.loss = loss
+        self.event_shape = event_shape
+        self.object_shape = object_shape
         self.callbacks = set()
 
         for k, v in kwargs.items():
@@ -55,19 +57,6 @@ class NN_model:
             self.batch_size = self.cross_entropy_batch_size
         else:
             self.batch_size = self.asimov_batch_size
-
-    def save(self, model_filepath):
-        # saves the network at regular intervals so you can pick the best version
-        checkpoint = tf.keras.callbacks.ModelCheckpoint(
-            filepath=model_filepath,
-            monitor=self.monitor,
-            verbose=1,
-            save_best_only=True,
-            save_weights_only=False,
-            mode=self.mode,
-            save_freq="epoch",
-        )
-        self.callbacks.add(checkpoint)
 
     def use_wandb(self):
         wandbcallback = wandb.keras.WandbCallback()
@@ -103,9 +92,7 @@ class NN_model:
 
 class merged_model(NN_model):
     def __init__(self, dropout_type, loss, event_shape, object_shape, **kwargs):
-        super().__init__(dropout_type, loss, **kwargs)
-        self.event_shape = event_shape
-        self.object_shape = object_shape
+        super().__init__(dropout_type, loss, event_shape, object_shape, **kwargs)
         self.make_model()
 
     def make_model(self):
@@ -182,9 +169,8 @@ class merged_model(NN_model):
 
 
 class RNN_model(NN_model):
-    def __init__(self, dropout_type, loss, object_shape, **kwargs):
-        super().__init__(dropout_type, loss, **kwargs)
-        self.object_shape = object_shape
+    def __init__(self, dropout_type, loss, event_shape, object_shape, **kwargs):
+        super().__init__(dropout_type, loss, event_shape, object_shape, **kwargs)
         self.make_model()
 
     def make_model(self):
@@ -219,7 +205,8 @@ class RNN_model(NN_model):
         )
 
     def scale_data(self, X_train, X_test):
-        X_train, X_test = scale_event_data(X_train, X_test)
+        X_train, X_test = scale_object_data(X_train, X_test)
+        return (X_train, X_test)
 
     def cross_validate(self, epochs, X, y, class_weights, cv=5):
 
@@ -230,9 +217,6 @@ class RNN_model(NN_model):
             # split into train and test
             X_train, X_test = (X[train_idx], X[test_idx])
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
-            # scale the data
-            X_train, X_test = scale_object_data(X_train, X_test)
 
             # train model
             history = self.train(
@@ -245,9 +229,8 @@ class RNN_model(NN_model):
 
 
 class FNN_model(NN_model):
-    def __init__(self, dropout_type, loss, event_shape, **kwargs):
-        super().__init__(dropout_type, loss, **kwargs)
-        self.event_shape = event_shape
+    def __init__(self, dropout_type, loss, event_shape, object_shape, **kwargs):
+        super().__init__(dropout_type, loss, event_shape, object_shape, **kwargs)
         self.make_model()
 
     def make_model(self):
@@ -261,3 +244,4 @@ class FNN_model(NN_model):
 
     def scale_data(self, X_train, X_test):
         X_train, X_test = scale_event_data(X_train, X_test)
+        return (X_train, X_test)
