@@ -178,6 +178,7 @@ def load_preprocessed_data(use_all_data=True):
             y_train, y_test,
     """
     load_path = config["paths"]["processed_path"]
+    load_path = os.path.join(Path(__file__).parent.parent.parent, load_path)
 
     if not use_all_data:
         df = load_data(load_all=False)

@@ -1,7 +1,7 @@
 """
 Train a machine learning model for ttH classification
 
-Typical usage: train_model.py --epochs {epochs} --all_data
+Typical usage: train_model.py --epochs {epochs} --all_data -m RNN --wandb
 
 where:
 --epochs epochs: number of epochs to run training for (typically 5–50)
@@ -29,7 +29,7 @@ import numpy as np
 import tensorflow as tf
 import wandb
 import yaml
-from keras.layers import Dropout
+from keras.layers import Dropout, LSTM
 from sklearn.model_selection import train_test_split
 from sklearn.utils import class_weight
 from src.features import build_features
@@ -43,6 +43,19 @@ class MonteCarloDropout(Dropout):
 
     def call(self, inputs):
         return super().call(inputs, training=True)
+
+
+class MCLSTM(LSTM):
+    def __init__(self, units, **kwargs):
+        super(MCLSTM, self).__init__(units, **kwargs)
+
+    def call(self, inputs, mask=None, training=None, initial_state=None):
+        return super(MCLSTM, self).call(
+            inputs,
+            mask=mask,
+            training=True,
+            initial_state=initial_state,
+        )
 
 
 def reset_random_seeds():
@@ -91,9 +104,7 @@ def asimov_loss(y_train):
 
 # TODO: Models I need:
 #       RNN model cross-entropy loss and mc dropout,
-#       RNN model cross-entropy loss w/o mc dropout,
 #       RNN model asimov loss and mc dropout,
-#       RNN model asimov loss w/o mc dropout,
 #       multiclass model cross-entropy loss and mc dropout,
 #       multiclass model cross-entropy loss w/o mc dropout,
 #       multiclass model asimov loss and mc dropout,
@@ -112,7 +123,6 @@ def main(args):
     mc_dropout = args.mc_dropout
     epochs = args.epochs
     model_type = args.model_type
-    dropout_type = MonteCarloDropout if mc_dropout else Dropout
     data = build_features.load_preprocessed_data(args.all_data)
     class_weights = calculate_class_weights(data["y_train"])
     loss = "binary_crossentropy"
@@ -130,7 +140,7 @@ def main(args):
     reset_random_seeds()
 
     model = model_dict[model_type](
-        dropout_type=dropout_type,
+        use_mc_dropout=mc_dropout,
         loss=loss,
         event_shape=data["event_X_train"].shape[1:],
         object_shape=data["object_X_train"].shape[1:],
@@ -214,6 +224,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model_type",
+        "-model",
         "-m",
         choices=("FNN", "RNN", "merged", "multiclass"),
         default="merged",

@@ -2,11 +2,18 @@ import os
 
 os.environ["PYTHONHASHSEED"] = str(1)  # sets python random seed for reproducibility
 
+import src.models.train_model as train_model
 import tensorflow as tf
 import wandb
 from keras import Input, Model
-from keras.layers import (LSTM, BatchNormalization, Concatenate, Dense,
-                          LayerNormalization)
+from keras.layers import (
+    LSTM,
+    BatchNormalization,
+    Concatenate,
+    Dense,
+    Dropout,
+    LayerNormalization,
+)
 from keras.models import Sequential
 from sklearn.model_selection import KFold
 from src.features.build_features import scale_event_data, scale_object_data
@@ -29,10 +36,22 @@ def get_average_history(histories):
 
 class NN_model:
     def __init__(
-        self, dropout_type, loss, event_shape=None, object_shape=None, **kwargs
+        self,
+        use_mc_dropout=False,
+        loss="binary_crossentropy",
+        event_shape=None,
+        object_shape=None,
+        **kwargs
     ):
 
-        self.dropout_type = dropout_type
+        self.dropout_type = Dropout
+        self.LSTM_type = LSTM
+        self.use_mc_dropout = use_mc_dropout
+
+        if self.use_mc_dropout:
+            self.dropout_type = train_model.MonteCarloDropout
+            self.LSTM_type = train_model.MCLSTM
+
         self.loss = loss
         self.event_shape = event_shape
         self.object_shape = object_shape
@@ -88,14 +107,14 @@ class NN_model:
 
 
 class merged_model(NN_model):
-    def __init__(self, dropout_type, loss, event_shape, object_shape, **kwargs):
-        super().__init__(dropout_type, loss, event_shape, object_shape, **kwargs)
+    def __init__(self, use_mc_dropout, loss, event_shape, object_shape, **kwargs):
+        super().__init__(use_mc_dropout, loss, event_shape, object_shape, **kwargs)
         self.make_model()
 
     def make_model(self):
         self.model = Sequential()
         self.model.add(
-            LSTM(
+            self.LSTM_type(
                 units=self.lstm_units,
                 input_shape=self.object_shape,
                 return_sequences=True,
@@ -104,7 +123,7 @@ class merged_model(NN_model):
         )
         self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
         self.model.add(
-            LSTM(
+            self.LSTM_type(
                 units=self.lstm_units,
                 recurrent_dropout=self.redropout,
             )
@@ -166,14 +185,14 @@ class merged_model(NN_model):
 
 
 class RNN_model(NN_model):
-    def __init__(self, dropout_type, loss, event_shape, object_shape, **kwargs):
-        super().__init__(dropout_type, loss, event_shape, object_shape, **kwargs)
+    def __init__(self, use_mc_dropout, loss, event_shape, object_shape, **kwargs):
+        super().__init__(use_mc_dropout, loss, event_shape, object_shape, **kwargs)
         self.make_model()
 
     def make_model(self):
         self.model = Sequential()
         self.model.add(
-            LSTM(
+            self.LSTM_type(
                 units=self.lstm_units,
                 input_shape=self.object_shape,
                 return_sequences=True,
@@ -182,7 +201,7 @@ class RNN_model(NN_model):
         )
         self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
         self.model.add(
-            LSTM(
+            self.LSTM_type(
                 units=self.lstm_units,
                 recurrent_dropout=self.redropout,
             )
@@ -226,8 +245,8 @@ class RNN_model(NN_model):
 
 
 class FNN_model(NN_model):
-    def __init__(self, dropout_type, loss, event_shape, object_shape, **kwargs):
-        super().__init__(dropout_type, loss, event_shape, object_shape, **kwargs)
+    def __init__(self, use_mc_dropout, loss, event_shape, object_shape, **kwargs):
+        super().__init__(use_mc_dropout, loss, event_shape, object_shape, **kwargs)
         self.make_model()
 
     def make_model(self):

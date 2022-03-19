@@ -8,7 +8,7 @@ _wandb:
     is_jupyter_run: false
     is_kaggle_kernel: false
     python_version: 3.9.6
-    start_time: 1647468908
+    start_time: 1647627432
     t:
       1:
       - 2
@@ -80,7 +80,7 @@ output_units:
   value: 179
 redropout:
   desc: null
-  value: 0.0794
+  value: 0.3
 systematic_uncertainty:
   desc: null
   value: 0.05

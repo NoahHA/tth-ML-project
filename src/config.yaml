@@ -2,7 +2,7 @@ RNN_params:
   lr: 0.0033
   activation: 'relu'
   dropout: 0.2810
-  redropout: 0.0794
+  redropout: 0.3 #0.0794
   num_merged_layers: 1
   clipnorm: 0.001
   lstm_units: 140
@@ -12,7 +12,7 @@ RNN_params:
   cross_entropy_batch_size: 128
   systematic_uncertainty: 0.05
   monitor: val_AUC
-  mode: auto
+  mode: max
 
 XGBoost_params:
   lr: 0.15, 
