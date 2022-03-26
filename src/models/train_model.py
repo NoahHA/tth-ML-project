@@ -100,17 +100,6 @@ def asimov_loss(y_train):
 
 # TODO: add classes for multiclass RNN
 # TODO: write summary at the top of all main files
-# TODO: create jupyter notebook to compare models
-
-# TODO: Models I need:
-#       RNN model cross-entropy loss and mc dropout,
-#       RNN model asimov loss and mc dropout,
-#       multiclass model cross-entropy loss and mc dropout,
-#       multiclass model cross-entropy loss w/o mc dropout,
-#       multiclass model asimov loss and mc dropout,
-#       multiclass model asimov loss w/o mc dropout,
-#       XGBoost with asimov loss
-
 
 # In results, can then compare:
 #       with and without mc dropout

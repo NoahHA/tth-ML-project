@@ -30,7 +30,7 @@ visuals:
     - 'science'
     - 'grid'
     - 'notebook'
-    - 'high-contrast'
+    - 'bright'
   shap_n_bg: 10
   shap_n_values: 500
 

@@ -1,4 +1,13 @@
-# TODO maybe write code to automatically create a latex document or something based on these plots
+"""
+Make a series of plots for model evaluation and save them to a folder
+in reports/model_name.
+
+Usage: visualize.py --model_name {model_name} --make_shap
+
+where:
+--model_name: the name of the model to be evaluated, will look for it in the models folder
+--make_shap: flag to generate shap plots for the model, this takes longer than the other plots
+"""
 
 import argparse
 import os
@@ -18,7 +27,11 @@ from sklearn.metrics import (
     roc_auc_score,
     roc_curve,
 )
-from src.features.build_features import load_preprocessed_data
+from src.features.build_features import (
+    load_preprocessed_data,
+    scale_event_data,
+    scale_object_data,
+)
 from tensorflow import keras
 
 config = yaml.safe_load(open(os.path.join(Path(__file__).parent.parent, "config.yaml")))
@@ -107,7 +120,7 @@ def make_discriminator(data, preds, model_name):
         bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
 
     n_bins = 50
-    use_log = True
+    use_log = False
     _, axs = plt.subplots(2, figsize=(14, 8))
 
     axs[0].yaxis.set_ticks([])
@@ -155,8 +168,8 @@ def make_discriminator(data, preds, model_name):
     plt.legend()
 
 
-def make_confusion_matrix(labels, predictions, p=0.5):
-    cm = confusion_matrix(labels, predictions > p, normalize="pred")
+def make_confusion_matrix(labels, predictions, p=0.5, norm="pred"):
+    cm = confusion_matrix(labels, predictions > p, normalize=norm)
     plt.figure(figsize=(8, 8))
 
     heatmap = sns.heatmap(
@@ -321,6 +334,13 @@ def make_shap_plots(model_name, model, data):
 
 def main(args):
     data = load_preprocessed_data()
+    data["event_X_train"], data["event_X_test"] = scale_event_data(
+        data["event_X_train"], data["event_X_test"]
+    )
+    data["object_X_train"], data["object_X_test"] = scale_object_data(
+        data["object_X_train"], data["object_X_test"]
+    )
+
     model_name = args.model_name
     model_path = os.path.join("models", model_name)
 
@@ -340,8 +360,10 @@ def main(args):
     make_significance(data, preds)
     save_plot(model_name, "significance")
     best_threshold = calculate_metrics(data, preds, plot_path)
-    make_confusion_matrix(data["y_test"], preds, p=best_threshold)
-    save_plot(model_name, "confusion_matrix")
+    make_confusion_matrix(data["y_test"], preds, p=best_threshold, norm="pred")
+    save_plot(model_name, "confusion_matrix_pred")
+    make_confusion_matrix(data["y_test"], preds, p=best_threshold, norm="true")
+    save_plot(model_name, "confusion_matrix_true")
     make_discriminator(data, preds, model_name)
     save_plot(model_name, "discriminator_plots")
     make_roc_curve(data, preds)
