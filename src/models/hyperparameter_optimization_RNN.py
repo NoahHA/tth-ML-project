@@ -165,7 +165,7 @@ def main():
     # Add stream handler of stdout to show the messages
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
     study_name = "bayesian_opt_v2"  # Unique identifier of the study.
-    storage_name = f"sqlite:///models/{study_name}.db"
+    storage_name = f"sqlite:///models/hyperparam_dbs/{study_name}.db"
 
     study = optuna.create_study(
         direction="minimize",
