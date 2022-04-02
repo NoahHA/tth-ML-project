@@ -4,19 +4,22 @@ import sys
 import numpy as np
 import optuna
 import src.models.train_model as train
-import tensorflow as tf
 import yaml
 from keras.layers import BatchNormalization, Dense, Dropout
 from keras.models import Sequential
 from optuna.integration.keras import KerasPruningCallback
 from sklearn.metrics import roc_auc_score
 from sklearn.utils import class_weight
-from src.features.build_features import load_preprocessed_data
+from src.features.build_features import (load_preprocessed_data,
+                                         scale_event_data)
 from tensorflow import keras
 
 config = yaml.safe_load(open("src/config.yaml"))
 
 data = load_preprocessed_data()
+data["event_X_train"], data["event_X_test"] = scale_event_data(
+    data["event_X_train"], data["event_X_test"]
+)
 
 METRICS = [
     keras.metrics.AUC(name="AUC"),
@@ -24,7 +27,7 @@ METRICS = [
 ]
 
 # stops training early if score doesn't improve
-early_stopping = tf.keras.callbacks.EarlyStopping(
+early_stopping = keras.callbacks.EarlyStopping(
     monitor=config["RNN_params"]["monitor"],
     verbose=1,
     patience=5,
@@ -105,8 +108,8 @@ def objective(trial):
         verbose=1,
     )
 
-    preds = model.predict(data['event_X_test'])
-    auc_score = roc_auc_score(data['y_test'], preds)
+    preds = model.predict(data["event_X_test"])
+    auc_score = roc_auc_score(data["y_test"], preds)
 
     return auc_score
 

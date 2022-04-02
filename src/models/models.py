@@ -138,10 +138,10 @@ class merged_model(NN_model):
         event_features = Input(shape=self.event_shape)
         merged_model = Concatenate()([event_features, self.model.output])
 
-        for _ in range(self.num_merged_layers):
+        for num_units in range(self.merged_layer_units):
             merged_model = BatchNormalization(epsilon=0.01)(merged_model)
             merged_model = self.dropout_type(self.dropout)(merged_model)
-            merged_model = Dense(units=self.merged_units, activation=self.activation)(
+            merged_model = Dense(units=num_units, activation=self.activation)(
                 merged_model
             )
 
@@ -250,15 +250,13 @@ class FNN_model(NN_model):
         self.make_model()
 
     def make_model(self):
-        num_hidden_layers = 1
-
         self.model = Sequential()
         self.model.add(Dense(units=self.event_shape[0], activation=self.activation))
 
-        for _ in range(num_hidden_layers):
+        for num_units in self.hidden_layer_units:
             self.model.add(BatchNormalization(epsilon=0.01))
             self.model.add(self.dropout_type(self.dropout))
-            self.model.add(Dense(units=self.merged_units, activation=self.activation))
+            self.model.add(Dense(units=num_units, activation=self.activation))
 
         self.model.add(
             Dense(

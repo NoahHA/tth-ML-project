@@ -109,62 +109,60 @@ def make_significance(data, preds):
     return (thresholds, significance)
 
 
-def make_discriminator(data, preds, model_name):
+def make_discriminator(data, preds, model_name, best_threshold):
     labels = data["y_test"].values
+    lum = config["data"]["lum"]
+    weights = labels * lum
 
     if "xgboost" in model_name:
-        sg = [pred for label, pred in zip(labels, preds) if label == 1]
-        bg = [pred for label, pred in zip(labels, preds) if label == 0]
+        sg = [
+            pred * weights[i]
+            for i, (label, pred) in enumerate(zip(labels, preds))
+            if label == 1
+        ]
+        bg = [
+            pred * weights[i]
+            for i, (label, pred) in enumerate(zip(labels, preds))
+            if label == 0
+        ]
     else:
         sg = [pred[0] for label, pred in zip(labels, preds) if label == 1]
         bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
 
-    n_bins = 50
+    n_bins = 200
+    alpha = 0.6
     use_log = False
-    _, axs = plt.subplots(2, figsize=(14, 8))
+    _, ax = plt.subplots(1, figsize=(14, 5))
 
-    axs[0].yaxis.set_ticks([])
-    axs[1].yaxis.set_ticks([])
-
-    axs[0].hist(
-        sg,
-        density=True,
-        bins=n_bins,
-        range=(0, 1),
-        label="ttH (signal)",
-        histtype="step",
-        log=use_log,
-    )
-    axs[0].hist(
-        bg,
-        density=True,
-        bins=n_bins,
-        range=(0, 1),
-        label=r"$t\bar{t}$ (background)",
-        histtype="step",
-        log=use_log,
-    )
-    axs[1].hist(
-        sg,
-        density=False,
-        bins=n_bins,
-        range=(0, 1),
-        label="ttH (signal)",
-        histtype="step",
-        log=use_log,
-    )
-    axs[1].hist(
+    ax.hist(
         bg,
         density=False,
         bins=n_bins,
         range=(0, 1),
         label=r"$t\bar{t}$ (background)",
-        histtype="step",
+        histtype="stepfilled",
+        alpha=alpha,
+        color='cornflowerblue',
+        edgecolor='blue',
         log=use_log,
     )
+    ax.hist(
+        sg,
+        density=False,
+        bins=n_bins,
+        range=(0, 1),
+        label="ttH (signal)",
+        histtype="stepfilled",
+        alpha=alpha,
+        color='orange',
+        edgecolor='red',
+        log=use_log,
+    )
+    ax.axvline(best_threshold, color='r', linestyle='--')
 
-    axs[0].set_title("Normalised")
-    axs[1].set_title("Unnormalised")
+    ax.set_xlabel("signal threshold")
+    ax.set_ylabel("event density")
+
     plt.legend()
 
 
@@ -348,6 +346,12 @@ def main(args):
         model = xgb.Booster({"nthread": 4})  # init model
         model.load_model(model_path)  # load data
         preds = model.predict(xgb.DMatrix(data["event_X_test"].values))
+    elif "FNN" in model_name:
+        model = keras.models.load_model(model_path, compile=False)
+        preds = model.predict(data["event_X_test"])
+    elif "RNN" in model_name:
+        model = keras.models.load_model(model_path, compile=False)
+        preds = model.predict(data["object_X_test"])
     else:
         model = keras.models.load_model(model_path, compile=False)
         preds = model.predict([data["event_X_test"], data["object_X_test"]])
@@ -364,7 +368,7 @@ def main(args):
     save_plot(model_name, "confusion_matrix_pred")
     make_confusion_matrix(data["y_test"], preds, p=best_threshold, norm="true")
     save_plot(model_name, "confusion_matrix_true")
-    make_discriminator(data, preds, model_name)
+    make_discriminator(data, preds, model_name, best_threshold)
     save_plot(model_name, "discriminator_plots")
     make_roc_curve(data, preds)
     save_plot(model_name, "roc_curve")

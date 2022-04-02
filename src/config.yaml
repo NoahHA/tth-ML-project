@@ -2,14 +2,29 @@ RNN_params:
   lr: 0.0033
   activation: 'relu'
   dropout: 0.2810
-  redropout: 0.3 #0.0794
-  num_merged_layers: 1
+  redropout: 0.0794
+  merged_layer_units:
+    - 300
   clipnorm: 0.001
   lstm_units: 140
-  merged_units: 300
   output_units: 179
   asimov_batch_size: 4096
   cross_entropy_batch_size: 128
+  systematic_uncertainty: 0.05
+  monitor: val_AUC
+  mode: max
+
+FNN_params:
+  lr: 0.0004
+  activation: 'relu'
+  dropout: 0.01
+  hidden_layer_units:
+    - 350
+    - 71
+    - 84
+  clipnorm: 0.001
+  asimov_batch_size: 4096
+  cross_entropy_batch_size: 64
   systematic_uncertainty: 0.05
   monitor: val_AUC
   mode: max
@@ -28,9 +43,7 @@ XGBoost_params:
 visuals:
   style: 
     - 'science'
-    - 'grid'
     - 'notebook'
-    - 'bright'
   shap_n_bg: 10
   shap_n_values: 500
 

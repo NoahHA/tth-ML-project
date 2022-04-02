@@ -1,0 +1,77 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.12.11
+    framework: keras
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.9.6
+    start_time: 1648649803
+    t:
+      1:
+      - 2
+      - 3
+      - 5
+      2:
+      - 2
+      - 3
+      - 5
+      3:
+      - 3
+      - 8
+      - 19
+      4: 3.9.6
+      5: 0.12.11
+      8:
+      - 3
+      - 5
+activation:
+  desc: null
+  value: relu
+all_data:
+  desc: null
+  value: true
+asimov_batch_size:
+  desc: null
+  value: 4096
+asimov_loss:
+  desc: null
+  value: false
+clipnorm:
+  desc: null
+  value: 0.001
+cross_entropy_batch_size:
+  desc: null
+  value: 64
+dropout:
+  desc: null
+  value: 0.01
+epochs:
+  desc: null
+  value: 50
+hidden_layer_units:
+  desc: null
+  value:
+  - 350
+  - 71
+  - 84
+lr:
+  desc: null
+  value: 0.0004
+mc_dropout:
+  desc: null
+  value: false
+mode:
+  desc: null
+  value: max
+model:
+  desc: null
+  value: src.models.RNN_models.FNN_model
+monitor:
+  desc: null
+  value: val_AUC
+systematic_uncertainty:
+  desc: null
+  value: 0.05

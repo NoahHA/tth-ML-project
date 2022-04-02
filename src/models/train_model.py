@@ -9,6 +9,7 @@ where:
                 or multiclass RNN+FNN
 --all_data: if added then model will automatically use all backgrounds,
                 otherwise you have to specify
+--model_type: which type of model to train, choice between RNN, FNN, merged, multiclass
 --wandb: flag to save model and config to wanbd
 --asimov_loss: flag to use asimov significance as the loss function,
                 rather than cross-entropy
@@ -29,11 +30,11 @@ import numpy as np
 import tensorflow as tf
 import wandb
 import yaml
-from keras.layers import Dropout, LSTM
+from keras.layers import LSTM, Dropout
 from sklearn.model_selection import train_test_split
 from sklearn.utils import class_weight
 from src.features import build_features
-from src.models import RNN_models, significance_loss
+from src.models import models, significance_loss
 
 config = yaml.safe_load(open(os.path.join(Path(__file__).parent.parent, "config.yaml")))
 
@@ -125,6 +126,8 @@ def main(args):
         "merged": RNN_models.merged_model,
     }
 
+    params = config["FNN_params"] if model_type == "FNN" else config["RNN_params"]
+
     # makes sure the experiment is reproducible
     reset_random_seeds()
 
@@ -133,7 +136,7 @@ def main(args):
         loss=loss,
         event_shape=data["event_X_train"].shape[1:],
         object_shape=data["object_X_train"].shape[1:],
-        **config["RNN_params"],
+        **params,
     )
 
     # if using wandb
@@ -146,7 +149,7 @@ def main(args):
         wandb.config.asimov_loss = args.asimov_loss
         wandb.config.model = type(model)
 
-        for key, value in config["RNN_params"].items():
+        for key, value in params.items():
             wandb.config[key] = value
 
         model.use_wandb()
