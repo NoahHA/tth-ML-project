@@ -121,9 +121,9 @@ def main(args):
         loss = asimov_loss(data["y_train"])
 
     model_dict = {
-        "FNN": RNN_models.FNN_model,
-        "RNN": RNN_models.RNN_model,
-        "merged": RNN_models.merged_model,
+        "FNN": models.FNN_model,
+        "RNN": models.RNN_model,
+        "merged": models.merged_model,
     }
 
     params = config["FNN_params"] if model_type == "FNN" else config["RNN_params"]
