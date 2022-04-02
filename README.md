@@ -1,17 +1,14 @@
 msci-project
 ==============================
 
-This is a project to detect invisible Higgs decays at the LHC through the ttH production mode. I've created a binary classifier to separate ttH events from ttbar events which are the main background. The model is a RNN taking in both event level and object level features. The data preprocessing is done through src/features/build_features.py, which saves all of the processed data in data/processed. To train a model run src/models/train_model.py. All of the configuration parameters for the model are stored in config.yaml and can be used to configure specific hyperparameters without having to go through the code.
+A project to detect invisible Higgs decays at the LHC through the ttH production mode. I've created a binary classifier to separate ttH events from ttbar events, which are the main background. The model is a RNN taking in both event level and object level features. The data preprocessing is done through src/features/build_features.py, which saves all of the processed data in data/processed. To train a model run src/models/train_model.py. All of the configuration parameters for the model are stored in config.yaml and can be used to configure specific hyperparameters without having to go through the code. Various data analysis that has been conducted is stored in notebooks/data_analysis, and all figures are saved in reports/figures.
 
 Project Organization
 ------------
 
     ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
     ├── README.md          <- The top-level README for developers using this project.
     ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
     │   ├── processed      <- The final, canonical data sets for modeling.
     │   └── raw            <- The original, immutable data dump.
     │
@@ -32,18 +29,14 @@ Project Organization
     │   ├── __init__.py    <- Makes src a Python module
     │   │
     │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
+    │   │   
     │   │
     │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
+    │   │                     predictions
+    │   │
+    │   │
     │   │
     │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
     │       └── visualize.py
     │
     └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
-
---------
-
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
