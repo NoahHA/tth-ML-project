@@ -90,9 +90,9 @@ def calculate_class_weights(y_train):
 
 def asimov_loss(y_train):
     signal_frac = sum(y_train == 1) / sum(y_train == 0)
-    expected_signal = int(signal_frac * config["RNN_params"]["asimov_batch_size"])
-    expected_bg = int((1 / signal_frac) * config["RNN_params"]["asimov_batch_size"])
-    systematic_uncertainty = config["RNN_params"]["systematic_uncertainty"]
+    expected_signal = int(signal_frac * config["merged_params"]["asimov_batch_size"])
+    expected_bg = int((1 / signal_frac) * config["merged_params"]["asimov_batch_size"])
+    systematic_uncertainty = config["merged_params"]["systematic_uncertainty"]
 
     return significance_loss.asimovSignificanceLossInvert(
         expected_signal, expected_bg, systematic_uncertainty
@@ -126,7 +126,12 @@ def main(args):
         "merged": models.merged_model,
     }
 
-    params = config["FNN_params"] if model_type == "FNN" else config["RNN_params"]
+    if model_type == 'FNN':
+        params = config["FNN_params"]
+    elif model_type == 'RNN':
+        params = config["RNN_params"]
+    elif model_type == 'merged':
+        params = config['merged_params']
 
     # makes sure the experiment is reproducible
     reset_random_seeds()

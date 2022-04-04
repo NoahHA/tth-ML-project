@@ -6,14 +6,8 @@ import src.models.train_model as train_model
 import tensorflow as tf
 import wandb
 from keras import Input, Model
-from keras.layers import (
-    LSTM,
-    BatchNormalization,
-    Concatenate,
-    Dense,
-    Dropout,
-    LayerNormalization,
-)
+from keras.layers import (LSTM, Activation, BatchNormalization, Concatenate,
+                          Dense, Dropout, LayerNormalization)
 from keras.models import Sequential
 from sklearn.model_selection import KFold
 from src.features.build_features import scale_event_data, scale_object_data
@@ -122,28 +116,28 @@ class merged_model(NN_model):
             )
         )
         self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
+        self.model.add(Activation('tanh'))
         self.model.add(
             self.LSTM_type(
                 units=self.lstm_units,
                 recurrent_dropout=self.redropout,
             )
         )
-        self.model.add(
-            Dense(
-                units=self.output_units,
-                activation=self.activation,
-            )
-        )
+        self.model.add(Activation('tanh'))
+
+        self.model.add(Dense(units=self.output_units))
+        self.model.add(BatchNormalization(epsilon=0.01))
+        self.model.add(Activation(self.activation))
+        self.model.add(self.dropout_type(self.dropout))
 
         event_features = Input(shape=self.event_shape)
         merged_model = Concatenate()([event_features, self.model.output])
 
-        for num_units in range(self.merged_layer_units):
+        for num_units in self.merged_layer_units:
+            merged_model = Dense(units=num_units)(merged_model)
             merged_model = BatchNormalization(epsilon=0.01)(merged_model)
+            merged_model = Activation(self.activation)(merged_model)
             merged_model = self.dropout_type(self.dropout)(merged_model)
-            merged_model = Dense(units=num_units, activation=self.activation)(
-                merged_model
-            )
 
         merged_model = Dense(1, activation="sigmoid")(merged_model)
         self.model = Model(
@@ -195,18 +189,18 @@ class RNN_model(NN_model):
             self.LSTM_type(
                 units=self.lstm_units,
                 input_shape=self.object_shape,
-                return_sequences=True,
                 recurrent_dropout=self.redropout,
             )
         )
         self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
-        self.model.add(
-            self.LSTM_type(
-                units=self.lstm_units,
-                recurrent_dropout=self.redropout,
-            )
-        )
-        self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
+        self.model.add(Activation('tanh'))
+
+        for num_units in self.hidden_layer_units:
+            self.model.add(Dense(units=num_units))
+            self.model.add(BatchNormalization(epsilon=0.01))
+            self.model.add(Activation(self.activation))
+            self.model.add(self.dropout_type(self.dropout))
+
         self.model.add(
             Dense(
                 units=1,
@@ -251,12 +245,16 @@ class FNN_model(NN_model):
 
     def make_model(self):
         self.model = Sequential()
-        self.model.add(Dense(units=self.event_shape[0], activation=self.activation))
+        self.model.add(Dense(units=self.event_shape[0]))
+        self.model.add(BatchNormalization(epsilon=0.01))
+        self.model.add(Activation(self.activation))
+        self.model.add(self.dropout_type(self.dropout))
 
         for num_units in self.hidden_layer_units:
+            self.model.add(Dense(units=num_units))
             self.model.add(BatchNormalization(epsilon=0.01))
+            self.model.add(Activation(self.activation))
             self.model.add(self.dropout_type(self.dropout))
-            self.model.add(Dense(units=num_units, activation=self.activation))
 
         self.model.add(
             Dense(

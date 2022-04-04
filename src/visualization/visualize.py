@@ -35,7 +35,6 @@ from src.features.build_features import (
 from tensorflow import keras
 
 config = yaml.safe_load(open(os.path.join(Path(__file__).parent.parent, "config.yaml")))
-plt.style.use(config["visuals"]["style"])
 
 
 def make_training_curves(history):
@@ -102,9 +101,10 @@ def make_significance(data, preds):
 
     significance = sg / np.sqrt(bg + epsilon)
 
-    plt.plot(thresholds, significance)
-    plt.ylabel("Significance")
-    plt.xlabel("Threshold")
+    with plt.style.context(config["visuals"]["style"]):
+        plt.plot(thresholds, significance)
+        plt.ylabel("Significance")
+        plt.xlabel("Threshold")
 
     return (thresholds, significance)
 
@@ -130,83 +130,107 @@ def make_discriminator(data, preds, model_name, best_threshold):
         bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
 
     n_bins = 200
-    alpha = 0.6
     use_log = False
-    _, ax = plt.subplots(1, figsize=(14, 5))
+    histtype = 'stepfilled'
+    alpha = 0.6
+    linewidth = 2
 
-    ax.hist(
-        bg,
-        density=False,
-        bins=n_bins,
-        range=(0, 1),
-        label=r"$t\bar{t}$ (background)",
-        histtype="stepfilled",
-        alpha=alpha,
-        color='cornflowerblue',
-        edgecolor='blue',
-        log=use_log,
-    )
-    ax.hist(
-        sg,
-        density=False,
-        bins=n_bins,
-        range=(0, 1),
-        label="ttH (signal)",
-        histtype="stepfilled",
-        alpha=alpha,
-        color='orange',
-        edgecolor='red',
-        log=use_log,
-    )
-    ax.axvline(best_threshold, color='r', linestyle='--')
+    bg_color = 'tab:blue'
+    bg_edge_color = 'blue'
+    sg_color = 'tab:red'
+    sg_edge_color = 'darkred'
 
-    ax.set_xlabel("signal threshold")
-    ax.set_ylabel("event density")
+    with plt.style.context(config["visuals"]["style"]):
+        _, ax = plt.subplots(1, figsize=(10, 5))
 
-    plt.legend()
+        ax.hist(
+            bg,
+            density=False,
+            bins=n_bins,
+            range=(0, 1),
+            label=r"$t\bar{t}$",
+            histtype=histtype,
+            alpha=alpha,
+            color=bg_color,
+            edgecolor=bg_edge_color,
+            linewidth=linewidth,
+            log=use_log,
+        )
+        ax.hist(
+            sg,
+            density=False,
+            bins=n_bins,
+            range=(0, 1),
+            label="ttH",
+            histtype=histtype,
+            alpha=alpha,
+            color=sg_color,
+            edgecolor=sg_edge_color,
+            linewidth=linewidth,
+            log=use_log,
+        )
+        ax.axvline(best_threshold, color='black', linestyle='--')
+    
+        ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 3))
+        ax.set_xlabel("Signal Threshold")
+        ax.set_ylabel("Event Density")
+
+        plt.legend(loc=1)
+        plt.tight_layout()
 
 
 def make_confusion_matrix(labels, predictions, p=0.5, norm="pred"):
     cm = confusion_matrix(labels, predictions > p, normalize=norm)
-    plt.figure(figsize=(8, 8))
+    linewidth = 0
 
-    heatmap = sns.heatmap(
+    plt.rcParams['axes.edgecolor'] = 'black'
+    plt.rcParams['axes.linewidth'] = linewidth
+
+    ax = sns.heatmap(
         cm,
+        cmap='OrRd',
         annot=True,
+        linewidth=linewidth,
+        square=True,
+        linecolor='black',
         xticklabels=[r"$t\bar{t}$ (background)", "ttH (signal)"],
         yticklabels=[r"$t\bar{t}$ (background)", "ttH (signal)"],
-        linewidths=0.8,
         vmin=0,
         vmax=1,
     )
 
-    for _, spine in heatmap.spines.items():
+    plt.title(f"Discriminator Threshold = {round(p, 3)}", loc='center', fontsize=10)
+
+    for _, spine in ax.spines.items():
         spine.set_visible(True)
 
-    plt.title(f"Discriminator Threshold = {round(p, 3)}")
     plt.ylabel("Actual label")
     plt.xlabel("Predicted label")
+
+    plt.rcParams.update(plt.rcParamsDefault)
 
 
 def make_roc_curve(data, preds):
     fpr, tpr, _ = roc_curve(data["y_test"], preds)
 
-    plt.figure(figsize=(8, 8))
-    plt.plot(fpr, tpr)
-    plt.plot([0, 1], [0, 1], "k--")
-    plt.axis([0, 1, 0, 1])
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
+    with plt.style.context(config["visuals"]["style"]):
+        plt.figure(figsize=(8, 8))
+        plt.plot(fpr, tpr)
+        plt.plot([0, 1], [0, 1], "k--")
+        plt.axis([0, 1, 0, 1])
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
 
 
 def make_pr_curve(data, preds):
     precision, recall, _ = precision_recall_curve(data["y_test"], preds)
-
-    plt.figure(figsize=(8, 8))
-    disp = PrecisionRecallDisplay(precision=precision, recall=recall)
-    disp.plot()
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
+    
+    with plt.style.context(config["visuals"]["style"]):
+        plt.figure(figsize=(8, 8))
+        disp = PrecisionRecallDisplay(precision=precision, recall=recall)
+        disp.plot()
+        plt.xlabel("Recall")
+        plt.ylabel("Precision")
 
 
 def calculate_metrics(data, preds, plot_path):
@@ -215,7 +239,8 @@ def calculate_metrics(data, preds, plot_path):
     best_threshold = thresholds[index]
     best_significance = significance[index]
     auc_score = roc_auc_score(data["y_test"], preds)
-
+    plt.clf()
+    
     metrics = {
         "Best Threshold": best_threshold,
         "Best Significance": best_significance,
@@ -266,15 +291,16 @@ def make_bar_plots(shap_values, data):
 
 
 def make_dependence_plots(shap_values, n_values, data):
-    plt.figure(figsize=(25, 20))
-    plt.subplots_adjust(hspace=0.5)
-    plt.suptitle("Dependence Plots", fontsize=40, y=0.95)
+    with plt.style.context(config["visuals"]["style"]):
+        plt.figure(figsize=(25, 20))
+        plt.subplots_adjust(hspace=0.5)
+        plt.suptitle("Dependence Plots", fontsize=40, y=0.95)
 
-    for i, name in enumerate(data["event_X_train"].columns):
-        ax = plt.subplot(4, 3, i + 1)
-        shap.dependence_plot(
-            name, shap_values, data["event_X_test"].head(n_values), ax=ax, show=False
-        )
+        for i, name in enumerate(data["event_X_train"].columns):
+            ax = plt.subplot(4, 3, i + 1)
+            shap.dependence_plot(
+                name, shap_values, data["event_X_test"].head(n_values), ax=ax, show=False
+            )
 
 
 def save_plot(model_name: str, fig_name: str):
@@ -293,6 +319,7 @@ def save_plot(model_name: str, fig_name: str):
         os.mkdir(plot_path)
 
     plt.savefig(os.path.join(plot_path, f"{fig_name}.png"), bbox_inches="tight")
+    plt.clf()
 
 
 def make_shap_plots(model_name, model, data):
@@ -316,16 +343,12 @@ def make_shap_plots(model_name, model, data):
         )
         shap_values = shap_values[0][0]
 
-    plt.clf()
     make_summary_plot(shap_values, n_values, data)
     save_plot(model_name, "shap_summary")
-    plt.clf()
     make_summary_plot_abs(shap_values, n_values, data)
     save_plot(model_name, "shap_summary_abs")
-    plt.clf()
     make_bar_plots(shap_values, data)
     save_plot(model_name, "shap_bar_plots")
-    plt.clf()
     make_dependence_plots(shap_values, n_values, data)
     save_plot(model_name, "shap_dependence_plots")
 
@@ -369,7 +392,7 @@ def main(args):
     make_confusion_matrix(data["y_test"], preds, p=best_threshold, norm="true")
     save_plot(model_name, "confusion_matrix_true")
     make_discriminator(data, preds, model_name, best_threshold)
-    save_plot(model_name, "discriminator_plots")
+    save_plot(model_name, "discriminator_plot")
     make_roc_curve(data, preds)
     save_plot(model_name, "roc_curve")
     make_pr_curve(data, preds)

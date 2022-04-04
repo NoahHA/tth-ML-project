@@ -1,4 +1,4 @@
-RNN_params:
+merged_params:
   lr: 0.0033
   activation: 'relu'
   dropout: 0.2810
@@ -10,6 +10,22 @@ RNN_params:
   output_units: 179
   asimov_batch_size: 4096
   cross_entropy_batch_size: 128
+  systematic_uncertainty: 0.05
+  monitor: val_AUC
+  mode: max
+
+RNN_params:
+  lr: 0.0008
+  activation: 'relu'
+  dropout: 0.4181
+  redropout: 0.3429
+  hidden_layer_units:
+    - 220
+    - 116
+  clipnorm: 0.001
+  lstm_units: 180
+  asimov_batch_size: 4096
+  cross_entropy_batch_size: 32
   systematic_uncertainty: 0.05
   monitor: val_AUC
   mode: max
