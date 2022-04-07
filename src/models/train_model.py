@@ -99,16 +99,6 @@ def asimov_loss(y_train):
     )
 
 
-# TODO: add classes for multiclass RNN
-# TODO: write summary at the top of all main files
-
-# In results, can then compare:
-#       with and without mc dropout
-#       with and without asimov loss
-#       binary vs multiclass
-#       FFN vs RNN vs merged
-
-
 def main(args):
     mc_dropout = args.mc_dropout
     epochs = args.epochs
@@ -116,6 +106,10 @@ def main(args):
     data = build_features.load_preprocessed_data(args.all_data)
     class_weights = calculate_class_weights(data["y_train"])
     loss = "binary_crossentropy"
+
+    # drop MET for a test
+    data['event_X_train'].drop('MHT_pt', axis=1, inplace=True)
+    data['event_X_test'].drop('MHT_pt', axis=1, inplace=True)
 
     if args.asimov_loss:
         loss = asimov_loss(data["y_train"])

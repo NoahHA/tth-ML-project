@@ -53,13 +53,14 @@ XGBoost_params:
   reg_lambda: 0.23,
   min_child_weight: 4,
   subsample: 1,
-  scale_pos_weight: scale_factor
+  scale_pos_weight: 3
   early_stopping_rounds: 20
 
 visuals:
   style: 
     - 'science'
     - 'notebook'
+    - 'grid'
   shap_n_bg: 10
   shap_n_values: 500
 

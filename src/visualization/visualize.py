@@ -131,14 +131,14 @@ def make_discriminator(data, preds, model_name, best_threshold):
 
     n_bins = 200
     use_log = False
-    histtype = 'stepfilled'
+    histtype = "stepfilled"
     alpha = 0.6
     linewidth = 2
 
-    bg_color = 'tab:blue'
-    bg_edge_color = 'blue'
-    sg_color = 'tab:red'
-    sg_edge_color = 'darkred'
+    bg_color = "tab:blue"
+    bg_edge_color = "blue"
+    sg_color = "tab:red"
+    sg_edge_color = "darkred"
 
     with plt.style.context(config["visuals"]["style"]):
         _, ax = plt.subplots(1, figsize=(10, 5))
@@ -169,9 +169,9 @@ def make_discriminator(data, preds, model_name, best_threshold):
             linewidth=linewidth,
             log=use_log,
         )
-        ax.axvline(best_threshold, color='black', linestyle='--')
-    
-        ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 3))
+        ax.axvline(best_threshold, color="black", linestyle="--")
+
+        ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 3))
         ax.set_xlabel("Signal Threshold")
         ax.set_ylabel("Event Density")
 
@@ -183,23 +183,23 @@ def make_confusion_matrix(labels, predictions, p=0.5, norm="pred"):
     cm = confusion_matrix(labels, predictions > p, normalize=norm)
     linewidth = 0
 
-    plt.rcParams['axes.edgecolor'] = 'black'
-    plt.rcParams['axes.linewidth'] = linewidth
+    plt.rcParams["axes.edgecolor"] = "black"
+    plt.rcParams["axes.linewidth"] = linewidth
 
     ax = sns.heatmap(
         cm,
-        cmap='OrRd',
+        cmap="OrRd",
         annot=True,
         linewidth=linewidth,
         square=True,
-        linecolor='black',
+        linecolor="black",
         xticklabels=[r"$t\bar{t}$ (background)", "ttH (signal)"],
         yticklabels=[r"$t\bar{t}$ (background)", "ttH (signal)"],
         vmin=0,
         vmax=1,
     )
 
-    plt.title(f"Discriminator Threshold = {round(p, 3)}", loc='center', fontsize=10)
+    plt.title(f"Discriminator Threshold = {round(p, 3)}", loc="center", fontsize=10)
 
     for _, spine in ax.spines.items():
         spine.set_visible(True)
@@ -224,7 +224,7 @@ def make_roc_curve(data, preds):
 
 def make_pr_curve(data, preds):
     precision, recall, _ = precision_recall_curve(data["y_test"], preds)
-    
+
     with plt.style.context(config["visuals"]["style"]):
         plt.figure(figsize=(8, 8))
         disp = PrecisionRecallDisplay(precision=precision, recall=recall)
@@ -240,7 +240,7 @@ def calculate_metrics(data, preds, plot_path):
     best_significance = significance[index]
     auc_score = roc_auc_score(data["y_test"], preds)
     plt.clf()
-    
+
     metrics = {
         "Best Threshold": best_threshold,
         "Best Significance": best_significance,
@@ -254,13 +254,30 @@ def calculate_metrics(data, preds, plot_path):
 
 
 def make_summary_plot(shap_values, n_values, data):
-    shap.summary_plot(
-        shap_values,
-        features=data["event_X_test"].head(n_values),
-        feature_names=data["event_X_test"].columns,
-        plot_size=(15, 10),
-        show=False,
-    )
+    with plt.style.context(config["visuals"]["style"]):
+        shap.summary_plot(
+            shap_values,
+            features=data["event_X_test"].head(n_values),
+            feature_names=data["event_X_test"].columns,
+            show=False,
+        )
+
+        ax = plt.gca()
+        fig = plt.gcf()
+        # fig.set_figwidth(12)
+        # fig.set_figheight(5)
+        ax.figure.set_size_inches(10, 5)
+
+        plt.minorticks_off()
+
+        ax.spines["top"].set_visible(True)
+        ax.spines["bottom"].set_visible(True)
+        ax.spines["left"].set_visible(True)
+        ax.spines["right"].set_visible(True)
+
+        plt.xlabel("Shapley Value (impact on model output)")
+        plt.title("Event Level Feature Importance")
+        plt.tight_layout()
 
 
 def make_summary_plot_abs(shap_values, n_values, data):
@@ -268,7 +285,7 @@ def make_summary_plot_abs(shap_values, n_values, data):
         np.abs(shap_values),
         features=data["event_X_test"].head(n_values),
         feature_names=data["event_X_test"].columns,
-        plot_size=(15, 10),
+        plot_size=(10, 8),
         show=False,
     )
 
@@ -299,7 +316,11 @@ def make_dependence_plots(shap_values, n_values, data):
         for i, name in enumerate(data["event_X_train"].columns):
             ax = plt.subplot(4, 3, i + 1)
             shap.dependence_plot(
-                name, shap_values, data["event_X_test"].head(n_values), ax=ax, show=False
+                name,
+                shap_values,
+                data["event_X_test"].head(n_values),
+                ax=ax,
+                show=False,
             )
 
 
@@ -330,18 +351,28 @@ def make_shap_plots(model_name, model, data):
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(data["event_X_test"].head(n_values).values)
     else:
-        background = [
-            data["event_X_train"].head(n_bg).values,
-            data["object_X_train"][:n_bg],
-        ]
-        explainer = shap.GradientExplainer(model, background)
-        shap_values = explainer.shap_values(
-            [
-                data["event_X_test"].head(n_values).values,
-                data["object_X_test"][:n_values],
+        if "FNN" in model_name:
+            background = [
+                data["event_X_train"].head(n_bg).values,
             ]
-        )
-        shap_values = shap_values[0][0]
+            explainer = shap.GradientExplainer(model, background)
+            shap_values = explainer.shap_values(
+                data["event_X_test"].head(n_values).values
+            )
+            shap_values = shap_values[0]
+        else:
+            background = [
+                data["event_X_train"].head(n_bg).values,
+                data["object_X_train"][:n_bg],
+            ]
+            explainer = shap.GradientExplainer(model, background)
+            shap_values = explainer.shap_values(
+                [
+                    data["event_X_test"].head(n_values).values,
+                    data["object_X_test"][:n_values],
+                ]
+            )
+            shap_values = shap_values[0][0]
 
     make_summary_plot(shap_values, n_values, data)
     save_plot(model_name, "shap_summary")
