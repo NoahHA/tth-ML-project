@@ -20,18 +20,10 @@ import seaborn as sns
 import shap
 import xgboost as xgb
 import yaml
-from sklearn.metrics import (
-    PrecisionRecallDisplay,
-    confusion_matrix,
-    precision_recall_curve,
-    roc_auc_score,
-    roc_curve,
-)
-from src.features.build_features import (
-    load_preprocessed_data,
-    scale_event_data,
-    scale_object_data,
-)
+from sklearn.metrics import (PrecisionRecallDisplay, confusion_matrix,
+                             precision_recall_curve, roc_auc_score, roc_curve)
+from src.features.build_features import (load_preprocessed_data,
+                                         scale_event_data, scale_object_data)
 from tensorflow import keras
 
 config = yaml.safe_load(open(os.path.join(Path(__file__).parent.parent, "config.yaml")))
@@ -130,7 +122,7 @@ def make_discriminator(data, preds, model_name, best_threshold):
         bg = [pred[0] for label, pred in zip(labels, preds) if label == 0]
 
     n_bins = 200
-    use_log = False
+
     histtype = "stepfilled"
     alpha = 0.6
     linewidth = 2
@@ -142,6 +134,12 @@ def make_discriminator(data, preds, model_name, best_threshold):
 
     with plt.style.context(config["visuals"]["style"]):
         _, ax = plt.subplots(1, figsize=(10, 5))
+
+        if 'sig' in model_name:
+            use_log = True
+        else:
+            use_log = False
+            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 3))
 
         ax.hist(
             bg,
@@ -171,7 +169,6 @@ def make_discriminator(data, preds, model_name, best_threshold):
         )
         ax.axvline(best_threshold, color="black", linestyle="--")
 
-        ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 3))
         ax.set_xlabel("Signal Threshold")
         ax.set_ylabel("Event Density")
 
@@ -254,29 +251,49 @@ def calculate_metrics(data, preds, plot_path):
 
 
 def make_summary_plot(shap_values, n_values, data):
-    with plt.style.context(config["visuals"]["style"]):
+    with plt.style.context(['science', 'notebook', 'grid', 'high-contrast']):
+        shap_condensed = np.sum(shap_values[0][1], axis=1)
+        shap_object_features = np.sum(data["object_X_test"][:n_values], axis=1)
+
+        plt.subplot(1, 2, 1)
+
         shap.summary_plot(
-            shap_values,
+            shap_values[0][0],
             features=data["event_X_test"].head(n_values),
             feature_names=data["event_X_test"].columns,
+            plot_type='dot',
             show=False,
         )
+        plt.minorticks_off()
+        plt.xlabel('Shapley Value (impact on model output)')
+        plt.title('Event Level Feature Importance')
 
         ax = plt.gca()
-        fig = plt.gcf()
-        # fig.set_figwidth(12)
-        # fig.set_figheight(5)
-        ax.figure.set_size_inches(10, 5)
+        ax.spines['top'].set_visible(True)
+        ax.spines['bottom'].set_visible(True)
+        ax.spines['left'].set_visible(True)
+        ax.spines['right'].set_visible(True)
+
+        plt.subplot(1, 2, 2)
+
+        shap.summary_plot(
+            shap_condensed,
+            feature_names=config['data']['object_cols'],
+            features=shap_object_features,
+            show=False)
+
+        plt.xlabel('Shapley Value (impact on model output)')
+        plt.title('Object Level Feature Importance')
+
+        ax = plt.gca()
+        ax.figure.set_size_inches(18, 5)
+
+        ax.spines['top'].set_visible(True)
+        ax.spines['bottom'].set_visible(True)
+        ax.spines['left'].set_visible(True)
+        ax.spines['right'].set_visible(True)
 
         plt.minorticks_off()
-
-        ax.spines["top"].set_visible(True)
-        ax.spines["bottom"].set_visible(True)
-        ax.spines["left"].set_visible(True)
-        ax.spines["right"].set_visible(True)
-
-        plt.xlabel("Shapley Value (impact on model output)")
-        plt.title("Event Level Feature Importance")
         plt.tight_layout()
 
 
@@ -359,7 +376,6 @@ def make_shap_plots(model_name, model, data):
             shap_values = explainer.shap_values(
                 data["event_X_test"].head(n_values).values
             )
-            shap_values = shap_values[0]
         else:
             background = [
                 data["event_X_train"].head(n_bg).values,
@@ -372,15 +388,14 @@ def make_shap_plots(model_name, model, data):
                     data["object_X_test"][:n_values],
                 ]
             )
-            shap_values = shap_values[0][0]
 
     make_summary_plot(shap_values, n_values, data)
     save_plot(model_name, "shap_summary")
-    make_summary_plot_abs(shap_values, n_values, data)
+    make_summary_plot_abs(shap_values[0][0], n_values, data)
     save_plot(model_name, "shap_summary_abs")
-    make_bar_plots(shap_values, data)
+    make_bar_plots(shap_values[0][0], data)
     save_plot(model_name, "shap_bar_plots")
-    make_dependence_plots(shap_values, n_values, data)
+    make_dependence_plots(shap_values[0][0], n_values, data)
     save_plot(model_name, "shap_dependence_plots")
 
 

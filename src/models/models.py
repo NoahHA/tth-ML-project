@@ -69,7 +69,7 @@ class NN_model:
             self.batch_size = self.asimov_batch_size
 
     def use_wandb(self):
-        wandbcallback = wandb.keras.WandbCallback()
+        wandbcallback = wandb.keras.WandbCallback(monitor=self.monitor, mode=self.mode)
         self.callbacks.add(wandbcallback)
 
     def train(self, epochs, X_train, X_test, y_train, y_test, class_weights):
@@ -116,14 +116,14 @@ class merged_model(NN_model):
             )
         )
         self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
-        self.model.add(Activation('tanh'))
+        self.model.add(Activation("tanh"))
         self.model.add(
             self.LSTM_type(
                 units=self.lstm_units,
                 recurrent_dropout=self.redropout,
             )
         )
-        self.model.add(Activation('tanh'))
+        self.model.add(Activation("tanh"))
 
         self.model.add(Dense(units=self.output_units))
         self.model.add(BatchNormalization(epsilon=0.01))
@@ -193,7 +193,7 @@ class RNN_model(NN_model):
             )
         )
         self.model.add(LayerNormalization(axis=-1, center=True, scale=True))
-        self.model.add(Activation('tanh'))
+        self.model.add(Activation("tanh"))
 
         for num_units in self.hidden_layer_units:
             self.model.add(Dense(units=num_units))

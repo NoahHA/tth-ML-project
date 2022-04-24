@@ -92,10 +92,13 @@ def asimov_loss(y_train):
     signal_frac = sum(y_train == 1) / sum(y_train == 0)
     expected_signal = int(signal_frac * config["merged_params"]["asimov_batch_size"])
     expected_bg = int((1 / signal_frac) * config["merged_params"]["asimov_batch_size"])
-    systematic_uncertainty = config["merged_params"]["systematic_uncertainty"]
+    # systematic_uncertainty = config["merged_params"]["systematic_uncertainty"]
 
-    return significance_loss.asimovSignificanceLossInvert(
-        expected_signal, expected_bg, systematic_uncertainty
+    # return significance_loss.asimovSignificanceLossInvert(
+    #     expected_signal, expected_bg, systematic_uncertainty
+    # )
+    return significance_loss.significanceLoss2Invert(
+        expected_signal, expected_bg
     )
 
 
@@ -106,10 +109,6 @@ def main(args):
     data = build_features.load_preprocessed_data(args.all_data)
     class_weights = calculate_class_weights(data["y_train"])
     loss = "binary_crossentropy"
-
-    # drop MET for a test
-    data['event_X_train'].drop('MHT_pt', axis=1, inplace=True)
-    data['event_X_test'].drop('MHT_pt', axis=1, inplace=True)
 
     if args.asimov_loss:
         loss = asimov_loss(data["y_train"])
